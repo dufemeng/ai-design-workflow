@@ -22,7 +22,7 @@
 ## 进度
 
 - [x] T0 配置和 artifact 协议（`src/config`）
-- [ ] T1 Flow Ledger Store
+- [x] T1 Flow Ledger Store（`src/flow`：状态机 + action/invariant + 续跑）
 - [ ] T2 模板 registry 接入
 - [ ] T3 项目扫描 + Stage 0 retrospective
 - [ ] T4 Product Context / DESIGN.md 冷启动
