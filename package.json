@@ -1,0 +1,22 @@
+{
+  "name": "ai-design-workflow",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Design Workflow System — 可安装、跨项目的设计到代码工作流编排器。对目标仓库运行，编排 Impeccable、gap 验证与 live 修复。",
+  "bin": {
+    "adw": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "adw": "node dist/cli.js"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "typescript": "^5.6.0"
+  }
+}
