@@ -30,7 +30,11 @@
 - [x] T6 HTML 原型发散 workbench（`src/proposal/prototype`：2-3 方向并排 + 嵌入 H5 预览）
 - [x] T7 需求级正式设计产物（src/design-flow：机器可读 spec + HTML baseline + 准入门）
 - [x] T8 设计稿审查门（src/review：确定性层 + 判断层证据契约 + 写回 ledger/md）
-- [ ] T9–T13
+- [x] T9 Code 工作台接入（src/code：上下文装配 + 阶段门）
+- [x] T10 最小 gap engine（src/gap：Playwright 采集 + 纯分析 + 报告 + ledger）
+- [ ] T11 自动修复 loop
+- [ ] T12 Human Live Review
+- [ ] T13 DESIGN.md 更新门禁
 
 ## 开发
 

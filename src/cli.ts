@@ -7,6 +7,8 @@ import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } 
 import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSchema } from './proposal/index.js';
 import { DesignFlowSpecSchema, readinessForCode, writeDesignFlow } from './design-flow/index.js';
 import { JudgmentInputSchema, ReviewError, runReviewGate } from './review/index.js';
+import { assembleCodeContext, CodeContextError } from './code/index.js';
+import { runGapLoop } from './gap/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -248,11 +250,69 @@ function designReview(targetDir: string, slug: string | undefined, judgmentPath:
   }
 }
 
-function main(argv: string[]): number {
+function codeContext(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw code:context <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  try {
+    const ctx = assembleCodeContext(targetDir, config, slug);
+    console.log(`flow：${slug}`);
+    console.log(`目标 route：${ctx.targetRoute ?? '（未指定）'}`);
+    console.log(`设计稿：${ctx.designHtmlRel}（DESIGN.md@${ctx.designVersion ?? '—'}）`);
+    console.log(`屏幕 ${ctx.spec.screens.length} / 状态 ${ctx.spec.states.length} / 验收 ${ctx.spec.acceptanceRules.length}`);
+    console.log(`实现目标：${ctx.implementationTarget ? `${ctx.implementationTarget.route}${ctx.implementationTarget.needsAuthedSession ? '（需登录会话）' : ''}` : '（未设定，先 code:target）'}`);
+    return 0;
+  } catch (err) {
+    if (err instanceof CodeContextError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+function codeTarget(targetDir: string, slug: string | undefined, route: string | undefined, flags: string[]): number {
+  if (!slug || !route) {
+    console.error('用法：adw code:target <目标项目目录> <flow-slug> <route/URL> [--no-auth]');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const needsAuthedSession = !flags.includes('--no-auth');
+  new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, { type: 'attachImplementationTarget', route, needsAuthedSession });
+  console.log(`已设定实现目标：${route}${needsAuthedSession ? '（gap 复用已登录会话）' : ''}`);
+  return 0;
+}
+
+async function gapRun(targetDir: string, slug: string | undefined, url: string | undefined, flags: string[]): Promise<number> {
+  if (!slug || !url) {
+    console.error('用法：adw gap:run <目标项目目录> <flow-slug> <实现页面 URL> [--storage storageState.json]');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const sIdx = flags.indexOf('--storage');
+  const storageStatePath = sIdx >= 0 ? flags[sIdx + 1] : undefined;
+  const { report, attached } = await runGapLoop(targetDir, config, slug, { url, storageStatePath });
+  console.log(`采集：${report.captureStatus}　阻塞 ${report.blockingCount} / 提醒 ${report.warningCount}${attached ? '（已 attach ledger）' : '（未 attach）'}`);
+  for (const c of report.checks) console.log(`  ${c.check}: ${c.status}${c.findings.length ? ` — ${c.findings.join('；')}` : ''}`);
+  if (report.note) console.log(`note：${report.note}`);
+  if (report.captureStatus === 'failed') return 1;
+  return report.blockingCount > 0 ? 1 : 0;
+}
+
+async function main(argv: string[]): Promise<number> {
   const command = argv[0];
 
   try {
     switch (command) {
+      case 'code:context':
+        return codeContext(argv[1] ?? process.cwd(), argv[2]);
+      case 'code:target':
+        return codeTarget(argv[1] ?? process.cwd(), argv[2], argv[3], argv.slice(4));
+      case 'gap:run':
+        return await gapRun(argv[1] ?? process.cwd(), argv[2], argv[3], argv.slice(4));
       case 'proposal:status':
         return proposalStatus(argv[1] ?? process.cwd(), argv[2]);
       case 'proposal:generate':
@@ -284,7 +344,7 @@ function main(argv: string[]): number {
         return 2;
     }
   } catch (err) {
-    if (err instanceof RegistryError || err instanceof LedgerError) {
+    if (err instanceof RegistryError || err instanceof LedgerError || err instanceof CodeContextError) {
       console.error(`错误：${err.message}`);
       console.error(`怎么修：${err.hint}`);
       return 1;
@@ -297,4 +357,9 @@ function main(argv: string[]): number {
   }
 }
 
-process.exit(main(process.argv.slice(2)));
+main(process.argv.slice(2))
+  .then((code) => process.exit(code))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
