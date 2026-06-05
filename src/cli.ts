@@ -2,6 +2,7 @@
 import { ConfigError, loadConfig } from './config/index.js';
 import { FlowLedgerStore, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
+import { retrospect, scanProject } from './scan/index.js';
 
 function configCheck(targetDir: string): number {
   try {
@@ -72,6 +73,35 @@ function templatesRecommend(scenarioArg: string | undefined, targetDir: string):
   return 0;
 }
 
+function scan(targetDir: string): number {
+  const { config } = loadConfig(targetDir);
+  const s = scanProject(targetDir, config);
+  console.log(`项目：${s.purpose.readmeTitle ?? s.techStack.packageName ?? targetDir}`);
+  if (s.purpose.readmeSummary) console.log(`简介：${s.purpose.readmeSummary}`);
+  console.log(`技术栈：${s.techStack.frameworks.join(', ') || '未识别'}${s.techStack.isMonorepo ? '（monorepo）' : ''}`);
+  console.log(`启动：${s.techStack.startCommands.join(' / ') || '未识别'}`);
+  console.log(`设计信号：Tailwind=${s.designSignals.hasTailwind} css=${s.designSignals.cssFileCount} token文件=${s.designSignals.tokenFiles.length} components目录=${s.designSignals.componentDirs.length}`);
+  const dl = s.designLanguage;
+  console.log(`设计语言：DESIGN.md=${dl.hasDesignMd} PRODUCT.md=${dl.hasProductMd} impeccable=${dl.impeccable.present}（critique ${dl.impeccable.critiqueCount} 篇, live=${dl.impeccable.hasLive}）`);
+  console.log(`需求级设计文档：${s.designFlows.length} 个 design-<flow>.md（${s.designFlows.filter((f) => f.hasHtml).length} 个有配套 HTML）`);
+  return 0;
+}
+
+function retrospectCmd(targetDir: string): number {
+  const { config } = loadConfig(targetDir);
+  const r = retrospect(targetDir, config);
+  console.log(`Stage 0 retrospective @ ${targetDir}`);
+  console.log(`共 ${r.totals.total} 个 design-<flow> 文档，gap-loop 可跑 ${r.totals.gapLoopReady} 个。\n`);
+  for (const f of r.flows) {
+    const mark = f.gapLoopReady ? '✓' : '✗';
+    console.log(`  ${mark} ${f.slug}${f.missing.length ? `  缺：${f.missing.join('、')}` : ''}`);
+  }
+  console.log('\n改进清单：');
+  for (const item of r.improvementList) console.log(`  - ${item}`);
+  console.log(`\n${r.heuristicNote}`);
+  return 0;
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
@@ -85,8 +115,12 @@ function main(argv: string[]): number {
         return templatesList(argv[1] ?? process.cwd());
       case 'templates:recommend':
         return templatesRecommend(argv[1], argv[2] ?? process.cwd());
+      case 'scan':
+        return scan(argv[1] ?? process.cwd());
+      case 'retrospect':
+        return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend> ...');
+        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend|scan|retrospect> ...');
         return 2;
     }
   } catch (err) {
