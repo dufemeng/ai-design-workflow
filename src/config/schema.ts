@@ -29,7 +29,10 @@ export const TemplateRegistrySchema = z.object({
 export type TemplateRegistry = z.infer<typeof TemplateRegistrySchema>;
 
 export const GapConfigSchema = z.object({
-  blockingChecks: z.array(GapCheckSchema).default(['token', 'state', 'dom', 'detector']),
+  // 运行期 gap 能真正阻塞的：token / dom / detector。
+  // state 不在这里——状态覆盖在 T8 设计门静态把关；运行期没有状态驱动，列进来只会是空挡。
+  // interaction 同理放 warning。等做了状态/交互驱动再升级。
+  blockingChecks: z.array(GapCheckSchema).default(['token', 'dom', 'detector']),
   warningChecks: z.array(GapCheckSchema).default(['interaction', 'a11y']),
   maxAutoFixRounds: z.number().int().min(1).max(10).default(3),
 });

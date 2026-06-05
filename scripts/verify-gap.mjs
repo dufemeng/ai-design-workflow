@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG } from '../dist/config/index.js';
 import { DesignFlowSpecSchema } from '../dist/design-flow/index.js';
-import { analyzeSnapshot, countSeverities, GapReportSchema, capturePage } from '../dist/gap/index.js';
+import { analyzeSnapshot, countSeverities, GapReportSchema, capturePage, GapCaptureError } from '../dist/gap/index.js';
 
 const spec = DesignFlowSpecSchema.parse({ flow: 'x', title: 'X', designVersion: 'sha256:abc', screens: [{ id: 'home', name: '首页' }], states: [{ id: 'e', screenId: 'home', kind: 'empty' }] });
 const gap = DEFAULT_CONFIG.gap;
@@ -65,3 +65,13 @@ assert.ok(snap.usedColors.some((c) => c.replace(/\s/g, '') === 'rgb(255,0,128)')
 const real = analyzeSnapshot(snap, spec, palette, gap);
 assert.equal(byCheck(real).token, 'block', '真实页面的离色应被 token 阻塞');
 console.log('GAP T10 (chromium) VERIFY: ALL PASS  title=' + snap.title);
+
+// 采集失败必须是 GapCaptureError（engine 据此写 failed 报告而不崩）
+let captureErr = null;
+try {
+  await capturePage('http://127.0.0.1:59999/', vp);
+} catch (e) {
+  captureErr = e;
+}
+assert.ok(captureErr instanceof GapCaptureError, '打不开的页面应抛 GapCaptureError，而不是裸 Error');
+console.log('GAP capture-failure VERIFY: ALL PASS');

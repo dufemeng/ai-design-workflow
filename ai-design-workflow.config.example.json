@@ -5,7 +5,7 @@
   "templateRegistry": { "type": "package", "value": "html-anything" },
   "defaultViewports": [{ "name": "iphone-15-pro", "width": 393, "height": 852 }],
   "gap": {
-    "blockingChecks": ["token", "state", "dom", "detector"],
+    "blockingChecks": ["token", "dom", "detector"],
     "warningChecks": ["interaction", "a11y"],
     "maxAutoFixRounds": 3
   }
