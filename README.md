@@ -32,7 +32,7 @@
 - [x] T8 设计稿审查门（src/review：确定性层 + 判断层证据契约 + 写回 ledger/md）
 - [x] T9 Code 工作台接入（src/code：上下文装配 + 阶段门）
 - [x] T10 最小 gap engine（src/gap：Playwright 采集 + 纯分析 + 报告 + ledger）
-- [ ] T11 自动修复 loop
+- [x] T11 自动修复 loop（src/autofix：安全契约 + 收敛/回滚/到顶控制）
 - [ ] T12 Human Live Review
 - [ ] T13 DESIGN.md 更新门禁
 

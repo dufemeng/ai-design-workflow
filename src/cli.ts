@@ -8,7 +8,8 @@ import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSche
 import { DesignFlowSpecSchema, readinessForCode, writeDesignFlow } from './design-flow/index.js';
 import { JudgmentInputSchema, ReviewError, runReviewGate } from './review/index.js';
 import { assembleCodeContext, CodeContextError } from './code/index.js';
-import { runGapLoop } from './gap/index.js';
+import { GapReportSchema, runGapLoop } from './gap/index.js';
+import { AUTOFIX_CONTRACT, splitFindings } from './autofix/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -302,11 +303,35 @@ async function gapRun(targetDir: string, slug: string | undefined, url: string |
   return report.blockingCount > 0 ? 1 : 0;
 }
 
+function autofixPlan(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw gap:autofix-plan <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const ledger = new FlowLedgerStore(targetDir, config.artifactDir).read(slug);
+  const lastRef = ledger.artifactRefs.gapReports.at(-1);
+  if (!lastRef) {
+    console.error('还没有 gap 报告，先跑 gap:run。');
+    return 1;
+  }
+  const report = GapReportSchema.parse(JSON.parse(readFileSync(join(targetDir, lastRef), 'utf8')));
+  const split = splitFindings(report.checks);
+  console.log(`最新 gap：阻塞 ${report.blockingCount} / 提醒 ${report.warningCount}`);
+  console.log(`可自动修复（${split.autoFixable.length}）：${split.autoFixable.map((c) => c.check).join(', ') || '无'}`);
+  console.log(`转人工 live（${split.toLive.length}）：${split.toLive.map((c) => c.check).join(', ') || '无'}`);
+  console.log('自动修复安全契约：');
+  for (const r of AUTOFIX_CONTRACT) console.log(`  - ${r}`);
+  return 0;
+}
+
 async function main(argv: string[]): Promise<number> {
   const command = argv[0];
 
   try {
     switch (command) {
+      case 'gap:autofix-plan':
+        return autofixPlan(argv[1] ?? process.cwd(), argv[2]);
       case 'code:context':
         return codeContext(argv[1] ?? process.cwd(), argv[2]);
       case 'code:target':
