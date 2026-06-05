@@ -5,6 +5,7 @@ import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSch
 import { retrospect, scanProject } from './scan/index.js';
 import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
 import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSchema } from './proposal/index.js';
+import { DesignFlowSpecSchema, readinessForCode, writeDesignFlow } from './design-flow/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -194,6 +195,29 @@ function proposalApprove(targetDir: string, slug: string | undefined, selection:
   return 0;
 }
 
+function designFlowGenerate(targetDir: string, slug: string | undefined, specPath: string | undefined): number {
+  if (!slug || !specPath) {
+    console.error('用法：adw design:flow-generate <目标项目目录> <flow-slug> <spec.json>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const spec = DesignFlowSpecSchema.parse(JSON.parse(readFileSync(specPath, 'utf8')));
+  const { mdPath, htmlPath, mdRel, htmlRel } = writeDesignFlow(targetDir, config, spec);
+  console.log(`已生成：${mdPath}`);
+  console.log(`已生成：${htmlPath}`);
+
+  const readiness = readinessForCode(spec);
+  if (spec.states.length === 0) {
+    console.error('挡住了：没有机器可读状态清单，不能进入 Code；已写出产物供补全，但不 attach 到 ledger。');
+    return 1;
+  }
+  const store = new FlowLedgerStore(targetDir, config.artifactDir);
+  store.apply(slug, { type: 'attachDesignArtifact', designMd: mdRel, designHtml: htmlRel, designVersion: spec.designVersion });
+  if (!readiness.ready) console.log(`提醒：进入 Code 前还缺 ${readiness.missing.join('、')}。`);
+  console.log('已 attach 设计稿到 ledger。');
+  return 0;
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
@@ -205,6 +229,8 @@ function main(argv: string[]): number {
         return proposalGenerate(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'proposal:approve':
         return proposalApprove(argv[1] ?? process.cwd(), argv[2], argv[3]);
+      case 'design:flow-generate':
+        return designFlowGenerate(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'design:bootstrap':
         return designBootstrap(argv.slice(1));
       case 'design:confirm':

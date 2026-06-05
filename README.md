@@ -28,8 +28,9 @@
 - [x] T4 Product Context / DESIGN.md 冷启动（`src/design`：解析/版本/确认页/写策略）
 - [x] T5 Proposal 探索循环（`src/proposal`：维度收敛骨架）
 - [x] T6 HTML 原型发散 workbench（`src/proposal/prototype`：2-3 方向并排 + 嵌入 H5 预览）
-- [ ] T7 需求级正式设计产物
-- [ ] T8–T13
+- [x] T7 需求级正式设计产物（src/design-flow：机器可读 spec + HTML baseline + 准入门）
+- [ ] T8 设计稿审查门（命门 gate）
+- [ ] T9–T13
 
 ## 开发
 
