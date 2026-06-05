@@ -6,6 +6,7 @@ import { retrospect, scanProject } from './scan/index.js';
 import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
 import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSchema } from './proposal/index.js';
 import { DesignFlowSpecSchema, readinessForCode, writeDesignFlow } from './design-flow/index.js';
+import { JudgmentInputSchema, ReviewError, runReviewGate } from './review/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -218,6 +219,35 @@ function designFlowGenerate(targetDir: string, slug: string | undefined, specPat
   return 0;
 }
 
+function designReview(targetDir: string, slug: string | undefined, judgmentPath: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw design:review <目标项目目录> <flow-slug> [judgment.json]');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const judgment = judgmentPath ? JudgmentInputSchema.parse(JSON.parse(readFileSync(judgmentPath, 'utf8'))) : { findings: [] };
+  try {
+    const r = runReviewGate(targetDir, config, slug, judgment);
+    console.log(`审查结果：${r.passed ? '通过' : '阻塞'}　参考分：${r.score}/40`);
+    if (r.blockingReasons.length) {
+      console.log('阻塞原因：');
+      for (const reason of r.blockingReasons) console.log(`  - ${reason}`);
+    }
+    if (r.judgment.fatalWithoutEvidence.length) {
+      console.log(`（${r.judgment.fatalWithoutEvidence.length} 条致命意见因缺证据被忽略，补证据才算数）`);
+    }
+    console.log(`报告：${r.reportPath}`);
+    return r.passed ? 0 : 1;
+  } catch (err) {
+    if (err instanceof ReviewError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
@@ -231,6 +261,8 @@ function main(argv: string[]): number {
         return proposalApprove(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'design:flow-generate':
         return designFlowGenerate(argv[1] ?? process.cwd(), argv[2], argv[3]);
+      case 'design:review':
+        return designReview(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'design:bootstrap':
         return designBootstrap(argv.slice(1));
       case 'design:confirm':
