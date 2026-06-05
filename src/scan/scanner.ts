@@ -36,7 +36,7 @@ export function scanProject(targetDir: string, config: AdwConfig): ProjectContex
   };
 }
 
-function walkFiles(root: string): string[] {
+export function walkFiles(root: string): string[] {
   const out: string[] = [];
   const visit = (dir: string, depth: number): void => {
     if (depth > MAX_DEPTH || out.length >= MAX_FILES) return;

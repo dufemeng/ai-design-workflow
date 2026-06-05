@@ -25,8 +25,9 @@
 - [x] T1 Flow Ledger Store（`src/flow`：状态机 + action/invariant + 续跑）
 - [x] T2 模板 registry 接入（`src/templates` + 内置 `templates/`：可配置源 + 内置兜底 + 场景推荐）
 - [x] T3 项目扫描 + Stage 0 retrospective（`src/scan`：snapshot + 缺口启发式检查）
-- [ ] T4 Product Context / DESIGN.md 冷启动
-- [ ] T5–T13
+- [x] T4 Product Context / DESIGN.md 冷启动（`src/design`：解析/版本/确认页/写策略）
+- [ ] T5 Proposal 探索循环
+- [ ] T6–T13
 
 ## 开发
 

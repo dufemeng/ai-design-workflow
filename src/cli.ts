@@ -3,6 +3,7 @@ import { ConfigError, loadConfig } from './config/index.js';
 import { FlowLedgerStore, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 import { retrospect, scanProject } from './scan/index.js';
+import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
 
 function configCheck(targetDir: string): number {
   try {
@@ -102,11 +103,45 @@ function retrospectCmd(targetDir: string): number {
   return 0;
 }
 
+function designBootstrap(rest: string[]): number {
+  const refresh = rest.includes('--refresh');
+  const targetDir = rest.find((a) => !a.startsWith('--')) ?? process.cwd();
+  const { config } = loadConfig(targetDir);
+  const r = bootstrapDesignLanguage(targetDir, config, { refresh });
+  console.log(`动作：${r.action}`);
+  for (const note of r.notes) console.log(`提示：${note}`);
+  console.log(`确认页：${r.confirmationPath}`);
+  if (r.draftPath) console.log(`草稿：${r.draftPath}`);
+  if (r.designVersion) console.log(`designVersion：${r.designVersion}`);
+  return 0;
+}
+
+function designConfirm(targetDir: string): number {
+  const { config } = loadConfig(targetDir);
+  try {
+    const { designMdPath, designVersion } = confirmDesignLanguage(targetDir, config);
+    console.log(`已写入：${designMdPath}`);
+    console.log(`designVersion：${designVersion}`);
+    return 0;
+  } catch (err) {
+    if (err instanceof DesignBootstrapError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
   try {
     switch (command) {
+      case 'design:bootstrap':
+        return designBootstrap(argv.slice(1));
+      case 'design:confirm':
+        return designConfirm(argv[1] ?? process.cwd());
       case 'config:check':
         return configCheck(argv[1] ?? process.cwd());
       case 'flow:status':
@@ -120,7 +155,7 @@ function main(argv: string[]): number {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend|scan|retrospect> ...');
+        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend|scan|retrospect|design:bootstrap|design:confirm> ...');
         return 2;
     }
   } catch (err) {
