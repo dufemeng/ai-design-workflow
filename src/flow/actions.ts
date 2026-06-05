@@ -1,4 +1,4 @@
-import type { FlowGate, FlowLedger, FlowStage, PatchIntent } from './schema.js';
+import type { ExplorationDimension, FlowGate, FlowLedger, FlowStage, PatchIntent } from './schema.js';
 
 /**
  * 状态推进 action（tasks 5.3）。大模型不能「凭记忆」推进阶段，
@@ -16,7 +16,7 @@ export interface PatchIntentInput {
 }
 
 export type FlowAction =
-  | { type: 'recordQuestionAnswer'; question: string; answer: string; assumption?: string; resolvedQuestion?: string; newOpenQuestion?: string }
+  | { type: 'recordQuestionAnswer'; question: string; answer: string; assumption?: string; resolvedQuestion?: string; newOpenQuestion?: string; resolvesDimension?: ExplorationDimension }
   | { type: 'attachPrototype'; htmlPath: string; label: string }
   | { type: 'approvePrototype'; selection: string }
   | { type: 'attachDesignArtifact'; designMd: string; designHtml: string; designVersion: string }
@@ -156,6 +156,9 @@ export function reduce(ledger: FlowLedger, action: FlowAction, now: string): Flo
       if (action.newOpenQuestion) next.exploration.openQuestions.push(action.newOpenQuestion);
       if (action.resolvedQuestion) {
         next.exploration.openQuestions = next.exploration.openQuestions.filter((q) => q !== action.resolvedQuestion);
+      }
+      if (action.resolvesDimension && !next.exploration.resolvedDimensions.includes(action.resolvesDimension)) {
+        next.exploration.resolvedDimensions.push(action.resolvesDimension);
       }
       break;
     }

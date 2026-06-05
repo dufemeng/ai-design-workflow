@@ -18,11 +18,23 @@ export const FlowGateSchema = z.enum([
 ]);
 export type FlowGate = z.infer<typeof FlowGateSchema>;
 
-/** Proposal 探索循环的累积状态。 */
+/** Proposal 探索循环要解决的关键维度（架构 7 的收敛条件）。 */
+export const ExplorationDimensionSchema = z.enum([
+  'target-user',
+  'core-scenario',
+  'main-path',
+  'key-states',
+  'constraints',
+  'success-criteria',
+]);
+export type ExplorationDimension = z.infer<typeof ExplorationDimensionSchema>;
+
+/** Proposal 探索循环的累积状态。收敛按维度判定，不按固定轮数。 */
 export const ExplorationSchema = z.object({
   assumptions: z.array(z.string()).default([]),
   decisions: z.array(z.string()).default([]),
   openQuestions: z.array(z.string()).default([]),
+  resolvedDimensions: z.array(ExplorationDimensionSchema).default([]),
 });
 
 /** 产物台账：所有路径相对目标项目根目录。 */

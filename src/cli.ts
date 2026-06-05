@@ -4,6 +4,7 @@ import { FlowLedgerStore, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 import { retrospect, scanProject } from './scan/index.js';
 import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
+import { convergence, nextDimension } from './proposal/index.js';
 
 function configCheck(targetDir: string): number {
   try {
@@ -133,11 +134,44 @@ function designConfirm(targetDir: string): number {
   }
 }
 
+function proposalStatus(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw proposal:status <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  try {
+    const { config } = loadConfig(targetDir);
+    const ledger = new FlowLedgerStore(targetDir, config.artifactDir).read(slug);
+    const conv = convergence(ledger);
+    console.log(`探索收敛：${conv.summary}`);
+    console.log(`已解决维度：${conv.resolved.join(', ') || '（无）'}`);
+    if (conv.canDiverge) {
+      console.log('→ 可以进入原型发散（attachPrototype）。');
+    } else {
+      const next = nextDimension(ledger);
+      if (next) {
+        console.log(`下一个该问（${next.label}）：${next.question}`);
+        console.log(`为什么：${next.why}`);
+      }
+    }
+    return 0;
+  } catch (err) {
+    if (err instanceof LedgerError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
   try {
     switch (command) {
+      case 'proposal:status':
+        return proposalStatus(argv[1] ?? process.cwd(), argv[2]);
       case 'design:bootstrap':
         return designBootstrap(argv.slice(1));
       case 'design:confirm':
@@ -155,7 +189,7 @@ function main(argv: string[]): number {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend|scan|retrospect|design:bootstrap|design:confirm> ...');
+        console.error('用法：adw <config:check|flow:status|templates:*|scan|retrospect|design:bootstrap|design:confirm|proposal:status> ...');
         return 2;
     }
   } catch (err) {

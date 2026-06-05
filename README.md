@@ -26,8 +26,9 @@
 - [x] T2 模板 registry 接入（`src/templates` + 内置 `templates/`：可配置源 + 内置兜底 + 场景推荐）
 - [x] T3 项目扫描 + Stage 0 retrospective（`src/scan`：snapshot + 缺口启发式检查）
 - [x] T4 Product Context / DESIGN.md 冷启动（`src/design`：解析/版本/确认页/写策略）
-- [ ] T5 Proposal 探索循环
-- [ ] T6–T13
+- [x] T5 Proposal 探索循环（`src/proposal`：维度收敛骨架）
+- [ ] T6 HTML 原型发散 workbench
+- [ ] T7–T13
 
 ## 开发
 

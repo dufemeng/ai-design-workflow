@@ -60,7 +60,7 @@ export class FlowLedgerStore {
       currentStage: 'proposal',
       currentGate: 'prototype-selection',
       designVersion: null,
-      exploration: { assumptions: [], decisions: [], openQuestions: [] },
+      exploration: { assumptions: [], decisions: [], openQuestions: [], resolvedDimensions: [] },
       artifactRefs: { prototypeHtml: [], designMd: null, designHtml: null, gapReports: [], patches: [] },
       reviewStatus: { state: 'not-run', blockingReasons: [], ranAt: null },
       gapHistory: [],
