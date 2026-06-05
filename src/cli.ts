@@ -10,6 +10,7 @@ import { JudgmentInputSchema, ReviewError, runReviewGate } from './review/index.
 import { assembleCodeContext, CodeContextError } from './code/index.js';
 import { GapReportSchema, runGapLoop } from './gap/index.js';
 import { AUTOFIX_CONTRACT, splitFindings } from './autofix/index.js';
+import { generateLiveWorkbench, liveMetrics, LiveError } from './live/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -325,11 +326,85 @@ function autofixPlan(targetDir: string, slug: string | undefined): number {
   return 0;
 }
 
+function liveWorkbench(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw live:workbench <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  try {
+    const { path, problemCount } = generateLiveWorkbench(targetDir, config, slug);
+    console.log(`已生成 live workbench：${path}（${problemCount} 个待处理问题）`);
+    return 0;
+  } catch (err) {
+    if (err instanceof LiveError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+function liveRecord(targetDir: string, slug: string | undefined, purpose: string | undefined, flags: string[]): number {
+  if (!slug || !purpose) {
+    console.error('用法：adw live:record <目标项目目录> <flow-slug> <改动目的> [--scope X] [--rule R] [--duration ms] [--result accepted|rejected|abandoned] [--no-reverify]');
+    return 2;
+  }
+  const getFlag = (name: string): string | undefined => {
+    const i = flags.indexOf(name);
+    return i >= 0 ? flags[i + 1] : undefined;
+  };
+  const resultRaw = getFlag('--result');
+  if (resultRaw && !['accepted', 'rejected', 'abandoned'].includes(resultRaw)) {
+    console.error(`--result 只能是 accepted / rejected / abandoned，收到「${resultRaw}」。`);
+    return 2;
+  }
+  const durationRaw = getFlag('--duration');
+  const durationMs = durationRaw && Number.isFinite(Number(durationRaw)) ? Number(durationRaw) : null;
+  const needsReverify = !flags.includes('--no-reverify');
+  const { config } = loadConfig(targetDir);
+  new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, {
+    type: 'recordPatchIntent',
+    intent: {
+      source: 'live',
+      purpose,
+      scope: getFlag('--scope') ?? 'live',
+      relatedRule: getFlag('--rule') ?? null,
+      needsReverify,
+      durationMs,
+      result: (resultRaw as 'accepted' | 'rejected' | 'abandoned' | undefined) ?? null,
+    },
+  });
+  console.log(`已记录 live PatchIntent：${purpose}`);
+  if (needsReverify) console.log('提醒：接受了改动，记得 gap:run 复验相关检查。');
+  return 0;
+}
+
+function liveMetricsCmd(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw live:metrics <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const ledger = new FlowLedgerStore(targetDir, config.artifactDir).read(slug);
+  const m = liveMetrics(ledger.patchIntentHistory);
+  console.log(`live 修改：${m.count} 次（接受 ${m.accepted} / 拒绝 ${m.rejected} / 放弃 ${m.abandoned}）`);
+  console.log(`返工率：${(m.reworkRate * 100).toFixed(0)}%　平均耗时：${m.avgDurationMs ?? '—'}ms　待复验：${m.needReverify}`);
+  return 0;
+}
+
 async function main(argv: string[]): Promise<number> {
   const command = argv[0];
 
   try {
     switch (command) {
+      case 'live:workbench':
+        return liveWorkbench(argv[1] ?? process.cwd(), argv[2]);
+      case 'live:record':
+        return liveRecord(argv[1] ?? process.cwd(), argv[2], argv[3], argv.slice(4));
+      case 'live:metrics':
+        return liveMetricsCmd(argv[1] ?? process.cwd(), argv[2]);
       case 'gap:autofix-plan':
         return autofixPlan(argv[1] ?? process.cwd(), argv[2]);
       case 'code:context':
