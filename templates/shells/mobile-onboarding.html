@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN" data-adw-template="mobile-onboarding" data-adw-surface="h5">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ADW · mobile-onboarding shell</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "PingFang SC", system-ui, sans-serif; background: #0b0b0f; color: #fff; }
+    .flow { display: flex; gap: 24px; padding: 32px; overflow-x: auto; }
+    .screen { flex: 0 0 320px; min-height: 640px; background: #16161c; border-radius: 32px; padding: 24px; display: flex; flex-direction: column; }
+    .screen h2 { font-size: 15px; opacity: .6; margin: 0 0 16px; }
+    .screen .body { flex: 1; }
+    .screen .cta { margin-top: 16px; padding: 12px; text-align: center; background: #4f7cff; border-radius: 12px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <!-- ADW:FLOW 每屏一个 .screen，按转场顺序排列 -->
+  <div class="flow">
+    <section class="screen"><h2>屏 1</h2><div class="body"><!-- ADW:SCREEN-1 --></div><div class="cta">下一步</div></section>
+    <section class="screen"><h2>屏 2</h2><div class="body"><!-- ADW:SCREEN-2 --></div><div class="cta">下一步</div></section>
+    <section class="screen"><h2>屏 3</h2><div class="body"><!-- ADW:SCREEN-3 --></div><div class="cta">完成</div></section>
+  </div>
+</body>
+</html>

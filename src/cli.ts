@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { ConfigError, loadConfig } from './config/index.js';
 import { FlowLedgerStore, LedgerError } from './flow/index.js';
+import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 
 function configCheck(targetDir: string): number {
   try {
@@ -45,17 +46,56 @@ function flowStatus(targetDir: string, slug: string | undefined): number {
   }
 }
 
+function templatesList(targetDir: string): number {
+  const { config } = loadConfig(targetDir);
+  const { registry, source, notes } = loadRegistry(config.templateRegistry, targetDir);
+  console.log(`模板源：${source}（root: ${registry.root}）`);
+  for (const note of notes) console.log(`提示：${note}`);
+  for (const t of registry.list()) {
+    console.log(`  ${t.id}  [${t.scenario}/${t.surface}]  ${t.name} — ${t.description}`);
+  }
+  return 0;
+}
+
+function templatesRecommend(scenarioArg: string | undefined, targetDir: string): number {
+  const parsed = TemplateScenarioSchema.safeParse(scenarioArg);
+  if (!parsed.success) {
+    console.error(`未知场景「${scenarioArg ?? ''}」。可选：${TemplateScenarioSchema.options.join(', ')}`);
+    return 2;
+  }
+  const scenario: TemplateScenario = parsed.data;
+  const { config } = loadConfig(targetDir);
+  const { registry } = loadRegistry(config.templateRegistry, targetDir);
+  const recs = registry.recommend(scenario);
+  console.log(`场景「${scenario}」推荐模板：`);
+  for (const t of recs) console.log(`  ${t.id} — ${t.name}`);
+  return 0;
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
-  switch (command) {
-    case 'config:check':
-      return configCheck(argv[1] ?? process.cwd());
-    case 'flow:status':
-      return flowStatus(argv[1] ?? process.cwd(), argv[2]);
-    default:
-      console.error('用法：adw <config:check|flow:status> ...');
-      return 2;
+  try {
+    switch (command) {
+      case 'config:check':
+        return configCheck(argv[1] ?? process.cwd());
+      case 'flow:status':
+        return flowStatus(argv[1] ?? process.cwd(), argv[2]);
+      case 'templates:list':
+        return templatesList(argv[1] ?? process.cwd());
+      case 'templates:recommend':
+        return templatesRecommend(argv[1], argv[2] ?? process.cwd());
+      default:
+        console.error('用法：adw <config:check|flow:status|templates:list|templates:recommend> ...');
+        return 2;
+    }
+  } catch (err) {
+    if (err instanceof RegistryError) {
+      console.error(`模板错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
   }
 }
 

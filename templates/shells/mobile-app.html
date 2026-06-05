@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN" data-adw-template="mobile-app" data-adw-surface="h5">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ADW · mobile-app shell</title>
+  <style>
+    :root { --safe-top: env(safe-area-inset-top, 44px); --safe-bottom: env(safe-area-inset-bottom, 34px); }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "PingFang SC", system-ui, sans-serif; background: #f2f2f7; }
+    .phone { max-width: 393px; min-height: 100dvh; margin: 0 auto; background: #fff; display: flex; flex-direction: column; }
+    .statusbar { height: var(--safe-top); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 16px 4px; font-size: 13px; color: #111; }
+    .appbar { padding: 8px 16px; font-size: 17px; font-weight: 600; border-bottom: 1px solid #e5e5ea; }
+    .content { flex: 1; padding: 16px; padding-bottom: calc(var(--safe-bottom) + 56px); }
+    .tabbar { position: sticky; bottom: 0; display: flex; justify-content: space-around; padding: 8px 0 calc(var(--safe-bottom)); border-top: 1px solid #e5e5ea; background: #fff; font-size: 11px; color: #8e8e93; }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <div class="statusbar"><span>9:41</span><span>● ● ●</span></div>
+    <header class="appbar"><!-- ADW:TITLE -->标题</header>
+    <section class="content"><!-- ADW:CONTENT --></section>
+    <nav class="tabbar"><!-- ADW:TABBAR --><span>首页</span><span>发现</span><span>我的</span></nav>
+  </main>
+</body>
+</html>

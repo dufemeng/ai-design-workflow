@@ -23,7 +23,7 @@
 
 - [x] T0 配置和 artifact 协议（`src/config`）
 - [x] T1 Flow Ledger Store（`src/flow`：状态机 + action/invariant + 续跑）
-- [ ] T2 模板 registry 接入
+- [x] T2 模板 registry 接入（`src/templates` + 内置 `templates/`：可配置源 + 内置兜底 + 场景推荐）
 - [ ] T3 项目扫描 + Stage 0 retrospective
 - [ ] T4 Product Context / DESIGN.md 冷启动
 - [ ] T5–T13

@@ -1,0 +1,68 @@
+{
+  "templates": [
+    {
+      "id": "mobile-app",
+      "name": "Mobile App 单屏",
+      "scenario": "h5-single",
+      "surface": "h5",
+      "description": "iPhone 风格 H5 单屏：状态栏、safe-area、底部导航。",
+      "shellPath": "shells/mobile-app.html"
+    },
+    {
+      "id": "mobile-onboarding",
+      "name": "Mobile Onboarding 多屏",
+      "scenario": "h5-flow",
+      "surface": "h5",
+      "description": "并排展示多屏 onboarding / 引导流程与关键转场。",
+      "shellPath": "shells/mobile-onboarding.html"
+    },
+    {
+      "id": "prototype-web",
+      "name": "Web 原型骨架",
+      "scenario": "web-proto",
+      "surface": "web",
+      "description": "Web 原型方向骨架，用于风格与信息架构发散。",
+      "shellPath": "shells/prototype-web.html"
+    },
+    {
+      "id": "pm-spec",
+      "name": "需求说明页",
+      "scenario": "prd-spec",
+      "surface": "doc",
+      "description": "把问题、指标、范围、user stories、设计说明整合成可读页面。",
+      "shellPath": "shells/pm-spec.html"
+    },
+    {
+      "id": "eng-runbook",
+      "name": "实现交接 Runbook",
+      "scenario": "eng-handoff",
+      "surface": "doc",
+      "description": "给开发和 agent 消费的实现步骤与验收路径。",
+      "shellPath": "shells/eng-runbook.html"
+    },
+    {
+      "id": "docs-page",
+      "name": "文档页",
+      "scenario": "eng-handoff",
+      "surface": "doc",
+      "description": "通用文档页，承载实现说明与参考。",
+      "shellPath": "shells/docs-page.html"
+    },
+    {
+      "id": "data-report",
+      "name": "数据报告",
+      "scenario": "data-report",
+      "surface": "report",
+      "description": "展示 gap report、diff、检测结果与修复状态。",
+      "shellPath": "shells/data-report.html"
+    },
+    {
+      "id": "dashboard",
+      "name": "仪表盘",
+      "scenario": "data-report",
+      "surface": "report",
+      "description": "指标概览与状态仪表盘。",
+      "shellPath": "shells/dashboard.html"
+    }
+  ]
+}

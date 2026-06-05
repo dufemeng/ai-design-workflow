@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN" data-adw-template="dashboard" data-adw-surface="report">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADW · dashboard shell</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, "PingFang SC", system-ui, sans-serif; background: #0a0a0a; color: #e5e3d3; }
+    main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .panel { background: #14140b; border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 20px; min-height: 120px; }
+    .panel .label { font-size: 12px; color: #93927c; }
+    .panel .value { font-size: 28px; font-weight: 600; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1><!-- ADW:TITLE -->仪表盘</h1>
+    <div class="grid"><!-- ADW:PANELS --><div class="panel"><div class="label">指标</div><div class="value">—</div></div></div>
+  </main>
+</body>
+</html>
