@@ -3,7 +3,8 @@ import { ConfigError, loadConfig } from './config/index.js';
 import { FlowLedgerStore, InvariantError, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 import { retrospect, scanProject } from './scan/index.js';
-import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
+import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError, confirmDesignDelta, DesignDeltaError, DesignDeltaInputSchema, proposeDesignDelta } from './design/index.js';
+import { ZodError } from 'zod';
 import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSchema } from './proposal/index.js';
 import { DesignFlowSpecSchema, readinessForCode, writeDesignFlow } from './design-flow/index.js';
 import { JudgmentInputSchema, ReviewError, runReviewGate } from './review/index.js';
@@ -326,6 +327,50 @@ function autofixPlan(targetDir: string, slug: string | undefined): number {
   return 0;
 }
 
+function designmdProposeDelta(targetDir: string, inputPath: string | undefined): number {
+  if (!inputPath) {
+    console.error('用法：adw designmd:propose-delta <目标项目目录> <delta-input.json>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const input = DesignDeltaInputSchema.parse(JSON.parse(readFileSync(inputPath, 'utf8')));
+  try {
+    const { proposalPath, confirmationPath } = proposeDesignDelta(targetDir, config, input);
+    console.log(`已生成 DESIGN.md 变更提案：${proposalPath}`);
+    console.log(`确认页：${confirmationPath}`);
+    console.log('未改 DESIGN.md。确认请跑 designmd:confirm-delta。');
+    return 0;
+  } catch (err) {
+    if (err instanceof DesignDeltaError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+function designmdConfirmDelta(targetDir: string, id: string | undefined): number {
+  if (!id) {
+    console.error('用法：adw designmd:confirm-delta <目标项目目录> <delta-id>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  try {
+    const { designMdPath, designVersion } = confirmDesignDelta(targetDir, config, id);
+    console.log(`已写入 DESIGN.md：${designMdPath}`);
+    console.log(`新 designVersion：${designVersion}（需求级文档应引用这个版本）`);
+    return 0;
+  } catch (err) {
+    if (err instanceof DesignDeltaError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
 function liveWorkbench(targetDir: string, slug: string | undefined): number {
   if (!slug) {
     console.error('用法：adw live:workbench <目标项目目录> <flow-slug>');
@@ -399,6 +444,10 @@ async function main(argv: string[]): Promise<number> {
 
   try {
     switch (command) {
+      case 'designmd:propose-delta':
+        return designmdProposeDelta(argv[1] ?? process.cwd(), argv[2]);
+      case 'designmd:confirm-delta':
+        return designmdConfirmDelta(argv[1] ?? process.cwd(), argv[2]);
       case 'live:workbench':
         return liveWorkbench(argv[1] ?? process.cwd(), argv[2]);
       case 'live:record':
@@ -440,7 +489,7 @@ async function main(argv: string[]): Promise<number> {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|templates:*|scan|retrospect|design:bootstrap|design:confirm|proposal:*> ...');
+        console.error('用法：adw <config:check|flow:status|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|code:*|gap:run|gap:autofix-plan|live:*> ...');
         return 2;
     }
   } catch (err) {
@@ -451,6 +500,11 @@ async function main(argv: string[]): Promise<number> {
     }
     if (err instanceof InvariantError) {
       console.error(`挡住了：${err.message}`);
+      return 1;
+    }
+    if (err instanceof ZodError) {
+      console.error('输入校验失败：');
+      for (const issue of err.issues) console.error(`  - ${issue.path.join('.') || '(root)'}: ${issue.message}`);
       return 1;
     }
     throw err;

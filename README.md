@@ -34,7 +34,7 @@
 - [x] T10 最小 gap engine（src/gap：Playwright 采集 + 纯分析 + 报告 + ledger）
 - [x] T11 自动修复 loop（src/autofix：安全契约 + 收敛/回滚/到顶控制）
 - [x] T12 Human Live Review（src/live：gap 门控 workbench + PatchIntent 指标）
-- [ ] T13 DESIGN.md 更新门禁
+- [x] T13 DESIGN.md 更新门禁（src/design/delta：delta proposal + 确认页 + 显式 confirm 才写）
 
 ## 开发
 
