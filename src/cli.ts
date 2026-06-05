@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { ConfigError, loadConfig } from './config/index.js';
-import { FlowLedgerStore, LedgerError } from './flow/index.js';
+import { FlowLedgerStore, InvariantError, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 import { retrospect, scanProject } from './scan/index.js';
 import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError } from './design/index.js';
-import { convergence, nextDimension } from './proposal/index.js';
+import { convergence, generateProposalWorkbench, nextDimension, ProposalSpecSchema } from './proposal/index.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function configCheck(targetDir: string): number {
   try {
@@ -165,6 +167,33 @@ function proposalStatus(targetDir: string, slug: string | undefined): number {
   }
 }
 
+function proposalGenerate(targetDir: string, slug: string | undefined, specPath: string | undefined): number {
+  if (!slug || !specPath) {
+    console.error('用法：adw proposal:generate <目标项目目录> <flow-slug> <directions.json>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const spec = ProposalSpecSchema.parse(JSON.parse(readFileSync(specPath, 'utf8')));
+  const { path, count } = generateProposalWorkbench(targetDir, config, slug, spec);
+  const relPath = join(config.artifactDir, `proposal-${slug}.html`);
+  const store = new FlowLedgerStore(targetDir, config.artifactDir);
+  store.apply(slug, { type: 'attachPrototype', htmlPath: relPath, label: `workbench(${count} 方向)` });
+  console.log(`已生成原型 workbench：${path}（${count} 个方向），并 attach 到 ledger。`);
+  return 0;
+}
+
+function proposalApprove(targetDir: string, slug: string | undefined, selection: string | undefined): number {
+  if (!slug || !selection) {
+    console.error('用法：adw proposal:approve <目标项目目录> <flow-slug> <selection>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const store = new FlowLedgerStore(targetDir, config.artifactDir);
+  const l = store.apply(slug, { type: 'approvePrototype', selection });
+  console.log(`已选定「${selection}」，进入 ${l.currentStage} 阶段。`);
+  return 0;
+}
+
 function main(argv: string[]): number {
   const command = argv[0];
 
@@ -172,6 +201,10 @@ function main(argv: string[]): number {
     switch (command) {
       case 'proposal:status':
         return proposalStatus(argv[1] ?? process.cwd(), argv[2]);
+      case 'proposal:generate':
+        return proposalGenerate(argv[1] ?? process.cwd(), argv[2], argv[3]);
+      case 'proposal:approve':
+        return proposalApprove(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'design:bootstrap':
         return designBootstrap(argv.slice(1));
       case 'design:confirm':
@@ -189,13 +222,17 @@ function main(argv: string[]): number {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|templates:*|scan|retrospect|design:bootstrap|design:confirm|proposal:status> ...');
+        console.error('用法：adw <config:check|flow:status|templates:*|scan|retrospect|design:bootstrap|design:confirm|proposal:*> ...');
         return 2;
     }
   } catch (err) {
-    if (err instanceof RegistryError) {
-      console.error(`模板错误：${err.message}`);
+    if (err instanceof RegistryError || err instanceof LedgerError) {
+      console.error(`错误：${err.message}`);
       console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    if (err instanceof InvariantError) {
+      console.error(`挡住了：${err.message}`);
       return 1;
     }
     throw err;
