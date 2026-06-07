@@ -36,7 +36,8 @@ HTML prototype / HTML design artifact
   给用户、设计师、开发和 agent 共同审阅的可视化产物
 
 gap report
-  设计产物和代码实现之间的差异证据
+  设计产物与实现的差异证据（目标态）
+  当前能力 = 实现页健康 + token/detector 闸门；设计稿 baseline diff 见 MVP T18
 ```
 
 Impeccable 不应被重造，但必须区分两类能力：
@@ -61,7 +62,7 @@ A：ADW CLI 确定性底座
   -> 读写 Flow Ledger、artifact、gap report、DESIGN.md delta gate，并直接调用 callable tools
 ```
 
-当前实现需要清洗：T0-T13 已经跑通一条 ADW fallback 薄闭环，但它把部分 Impeccable skill 当成 CLI 能力描述，并用自写 detector / critique / DESIGN seed 顶替主路径。改造目标是删除这些错误替代实现，不把 fallback 留成历史负债。
+当前实现需要清洗：T0-T13 搭起了 ADW fallback 底座，但一度把部分 Impeccable skill 当成 CLI 能力描述，并用自写 detector / critique / DESIGN seed 顶替主路径，且四个闭环命令缺 CLI 入口（已由 T16 接线）。改造目标是删除这些错误替代实现、接上断掉的闭环，不把 fallback 留成历史负债。
 
 ## 2. 背景
 
@@ -883,7 +884,7 @@ MVP 先不做多 profile，只预留扩展点。
 
 目标：三个工作台有最小 UI 或 CLI 入口。
 
-当前实现状态：T0-T13 已完成一版 ADW fallback MVP，能跑通 proposal -> design -> review -> code -> gap -> ledger -> live workbench / PatchIntent 的薄闭环。
+当前实现状态：T0-T13 实现了 ADW fallback MVP 的大部分模块（proposal / design / review / code context / gap / ledger / live workbench / PatchIntent）。闭环命令一度缺失，已由 MVP 任务 T16 接线，现可经 CLI 端到端跑通；detect adapter 已接入（T14a），handoff/import（T14b）、state/interaction driver（T15）、agent 编排入口（T17）、设计稿 baseline diff（T18）仍待做。详见 MVP 实施文档 §8/§9。
 
 - Proposal / Prototype：一句话需求到 2 到 3 个 HTML 方案。
 - Design：生成需求级设计文档和正式 HTML 设计稿。
