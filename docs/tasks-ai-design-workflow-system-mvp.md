@@ -1,24 +1,27 @@
 # AI Design Workflow System MVP 实施方案
 
-更新时间：2026-06-04  
-状态：待实施  
+更新时间：2026-06-05  
+状态：P0 清债重构版；目标为 Agent 主控 + ADW 确定性底座  
 关联设计：`docs/design-ai-design-workflow-system.md`
 
 ## 1. 实施结论
 
-MVP 不先做完整网页平台，也不只做纯聊天 skill。第一版交付形态是：
+MVP 不先做完整网页平台，也不把 ADW CLI 当作完整产品主入口。第一版交付形态是：
 
 ```text
-skill / agent workflow
-  -> 编排仓库扫描、提问、产物生成、Impeccable 调用、gap 验证和代码 patch
+Claude Code / Codex agent workflow
+  -> 主控仓库扫描、提问、产物生成、Impeccable skill、gap 验证和代码 patch
 
 local HTML workbench
   -> 承载用户看、选、评审、确认和 live review 入口
+
+ADW CLI substrate
+  -> 提供 Flow Ledger、artifact、gap、detect、delta gate、handoff/import 等确定性动作
 ```
 
 核心工程目标不是一次性生成漂亮页面，而是把一条需求 flow 的状态、产物、门禁和修复历史串起来，保证它能中断、续跑、复盘和重复执行。
 
-MVP 必须跑通：
+当前 T0-T13 已跑通的是 ADW fallback 薄闭环，但需要清债后才能作为目标架构底座：
 
 ```text
 已有项目 retrospective
@@ -28,31 +31,42 @@ MVP 必须跑通：
   -> 2-3 个 HTML 原型方向
   -> 用户选择 / 合并
   -> docs/design-<flow>.md + docs/design-<flow>.html
-  -> 设计稿审查门
+  -> ADW fallback 设计稿审查门（需改为 ADW gate + skill import）
   -> 代码实现
-  -> token / state / DOM / detector 阻塞检查
-  -> interaction / a11y 提醒
+  -> token / DOM / 自写 detector 阻塞检查（需替换为 impeccable detect）
+  -> state / interaction not-run
+  -> a11y 提醒
   -> 自动修复确定性问题
-  -> Impeccable live 人工局部修复
+  -> live workbench + PatchIntent
   -> FlowRun 通过记录
 ```
+
+必须清理的名实差距：
+
+- `document` / `critique` / `live` / `polish` 是 agent skill，不能写成 ADW CLI 直接调用。
+- 自写 detector 是错误替代实现，必须从主路径删除并替换为 `impeccable detect --json`。
+- `design:bootstrap` 的扫描 seed 只能是 handoff context / draft，不得包装成完整 DESIGN.md 生成。
+- `design:review` 的 judgment input 只能是证据门禁和 import 校验，不得包装成 Impeccable critique。
+- 未实现运行期 state / interaction driver；空、加载、错误、边界数据等状态目前只能在设计门静态把关，gap 运行期诚实标 `not-run`。
 
 ## 2. MVP 默认决策
 
 | 问题 | MVP 默认 | 原因 |
 | --- | --- | --- |
-| 用户入口 | Codex / Claude / CLI 中的 skill 或 agent workflow | 最快验证流程，不先做平台 |
+| 用户入口 | Codex / Claude 中的 agent workflow | 目标用户本来就在 AI harness 中使用 |
 | 用户界面 | 本地 HTML workbench | 原型、设计稿、gap report 都需要可视化决策 |
-| live 修改 | 复用 Impeccable live | 当前可用，先记录数据，不提前重构 |
+| CLI 定位 | ADW 是 agent 可调用的确定性底座 | 不把 CLI 伪装成完整智能流程主控 |
+| live 修改 | 当前是 live workbench + PatchIntent；真实修改走 agent `/live` handoff | `/live` 是 skill，不是已证明可 spawn 的 CLI |
 | Flow 状态 | `docs/design-<flow>.workflow.json` | 把一条 flow 的状态和产物绑住 |
 | 需求级设计文档 | `docs/design-<flow>.md` | 需求权威记录，不污染根 `DESIGN.md` |
 | 正式 HTML 设计稿 | `docs/design-<flow>.html` | 用户审阅载体和 gap baseline |
 | Proposal HTML | `docs/proposal-<flow>.html` | 方案发散和选择页 |
 | gap report | `docs/assets/<flow>/gap-report-<runId>.json/html` + latest 摘要 | 每轮独立保存，机器消费和用户审阅分离 |
-| `PRODUCT.md` | 短期保留根目录兼容文件 | 直接复用 Impeccable |
+| `PRODUCT.md` | 短期保留根目录兼容文件 | 兼容 Impeccable；当前不代表已调用 Impeccable |
 | `DESIGN.md` 更新 | 只允许 delta proposal + 当前操作者确认 | 防止 agent 后台污染全局设计语言 |
-| MVP 阻塞检查 | token / state / DOM / detector | 工程上可落地，误杀风险可控 |
-| MVP 提醒检查 | interaction / a11y | 先记录噪声，阶段 2 再升级稳定规则 |
+| MVP 运行期阻塞检查 | token / DOM / `impeccable detect --json` | detector 来源必须是真 Impeccable CLI |
+| MVP 运行期 not-run | state / interaction | 缺状态 / 交互驱动，不能假装已验证 |
+| MVP 提醒检查 | a11y | 先记录噪声，阶段 2 再升级稳定规则 |
 | screenshot | visual evidence | 不作为默认阻塞标准 |
 
 ## 3. 范围
@@ -64,14 +78,14 @@ MVP 必须跑通：
 - 接入可配置 HTML 模板 registry，不硬编码本机路径。
 - 先用本仓库已有 `DESIGN.md`、`PRODUCT.md`、`.impeccable/` 和 `docs/design-<flow>.md/html` 做 Stage 0 retrospective。
 - 实现项目上下文扫描：README、AGENTS、CLAUDE、docs、package、routes、CSS、tokens、组件、现有页面。
-- 复用 Impeccable 生成或刷新 `PRODUCT.md` / `DESIGN.md`。
+- 生成或确认 `PRODUCT.md` / `DESIGN.md`；ADW 负责 handoff context、draft、确认页和 delta gate，Impeccable `/document` 由 agent 执行后导入。
 - 生成 `DESIGN.md` HTML 可视化确认页。
 - 实现 Proposal / Prototype 的苏格拉底探索循环和 HTML 原型发散。
 - 生成需求级 `docs/design-<flow>.md` 和 `docs/design-<flow>.html`。
 - 实现设计稿审查门：deterministic rules + judgment review。
 - 实现 Code 工作台的最小 gap loop。
 - 自动修复确定性问题，最多三轮。
-- 将 Impeccable live 作为人工局部修复入口。
+- 将 live workbench 作为人工局部修复入口；真实修改由 agent `/live` handoff 或未来经验证的 live server adapter 完成。
 - 记录 PatchIntent、gap history 和 resume pointer。
 
 ### 3.2 不做
@@ -85,6 +99,7 @@ MVP 必须跑通：
 - 不把 interaction / a11y 在 MVP 中直接作为全部阻塞检查。
 - 不把 live 当成纯静态 HTML 能力。
 - 不让 agent 后台静默改根 `DESIGN.md`。
+- 不把 ADW fallback detector / critique / DESIGN.md seed 保留为主路径；错误替代实现必须删除或改成显式 handoff / import。
 
 ## 4. 目录和产物约定
 
@@ -114,7 +129,7 @@ PRODUCT.md                             # MVP 兼容 Impeccable
 - 创建 flow 前必须查重；如果 `docs/design-<flow>.workflow.json` 或同名核心产物已存在，必须提示用户换名、复用已有 flow，或自动追加短后缀。
 - Markdown 是权威记录，HTML 是主要审阅载体。
 - HTML workbench 负责展示决策上下文；MVP 中不要求静态页面自动回写状态，用户决策由对话口述给 agent，再由 orchestrator 落 action。
-- 真正改运行页面的 live 路径复用 Impeccable live。
+- 真正改运行页面的 live 路径由 agent 执行 Impeccable `/live`，或复用未来经验证可脚本化的 live server/session。
 - `docs/design-<flow>.workflow.json` 是内部控制面，不要求用户理解字段。
 
 ## 5. FlowRun 状态机和产物台账
@@ -178,6 +193,8 @@ Design Workflow Orchestrator
   -> Project Scanner
   -> Template Registry Adapter
   -> Product Context Adapter
+  -> Agent Skill Handoff / Import
+  -> Impeccable Detect Adapter
   -> DESIGN.md Bootstrapper
   -> Proposal / Prototype Engine
   -> Design Artifact Engine
@@ -189,18 +206,20 @@ Design Workflow Orchestrator
 
 | 模块 | 职责 | MVP 实现方式 |
 | --- | --- | --- |
-| Orchestrator | 执行 action、跑 invariant、推进 stage/gate | 本地命令或 skill 编排 |
+| Orchestrator | 执行 action、跑 invariant、推进 stage/gate | ADW CLI，被 agent 调用 |
 | Flow Ledger Store | 读写 `docs/design-<flow>.workflow.json` | JSON schema + append-only event log |
 | Project Scanner | 读取仓库上下文和现有设计信号 | 本地文件扫描 + 可选浏览器采样 |
 | Template Registry Adapter | 提供 HTML 模板清单和示例 | 路径或 package 可配置 |
 | Product Context Adapter | 维护产品调性上下文 | MVP 读写 `PRODUCT.md` |
-| DESIGN.md Bootstrapper | 生成/确认全局设计语言 | 包装 Impeccable `init/document` |
+| Agent Skill Handoff / Import | 把 `/document`、`/critique`、`/polish`、`/live` 等 skill 交给 agent 执行并导入结果 | P0 新增 |
+| Impeccable Detect Adapter | 调用 `impeccable detect --json` 并解析 findings | P0 新增，替换自写 detector |
+| DESIGN.md Bootstrapper | 生成/确认全局设计语言 | ADW 生成 handoff context / draft / 确认页，导入 agent `/document` 结果 |
 | Proposal Engine | 苏格拉底探索、发散、收敛 | 会话状态 + 决策树 + HTML 候选页 |
 | Design Artifact Engine | 生成需求级设计文档和正式 HTML | `docs/design-<flow>.md/html` |
-| Review Gate Engine | 设计稿审查门 | deterministic rules + Impeccable critique/detector |
-| Code Gap Engine | 设计稿和实现页面比对 | token/state/DOM/detector 阻塞，interaction/a11y 提醒 |
+| Review Gate Engine | 设计稿审查门 | ADW deterministic + `impeccable detect --json` + agent `/critique` import 证据门禁 |
+| Code Gap Engine | 设计稿和实现页面比对 | token/DOM/Impeccable detect 阻塞；state/interaction not-run；a11y 提醒 |
 | Auto Fix Engine | 修复确定性问题 | 最多三轮，patch 可回滚 |
-| Live Repair Bridge | 人工局部修复 | Impeccable `live` + PatchIntent |
+| Live Repair Bridge | 人工局部修复 | live workbench + PatchIntent + agent `/live` handoff；可脚本化 live server 单独 spike |
 
 ## 7. 任务拆分
 
@@ -215,8 +234,8 @@ Design Workflow Orchestrator
   - `designMdPath`，默认 `DESIGN.md`。
   - `productContextMode`，MVP 为 `product-md-compatible`。
   - `defaultViewports`，至少包含 H5 mobile。
-  - `gap.blockingChecks`，默认 `token/state/dom/detector`。
-  - `gap.warningChecks`，默认 `interaction/a11y`。
+  - `gap.blockingChecks`，当前默认 `token/dom/detector`。
+  - `gap.warningChecks`，当前默认 `interaction/a11y`；其中 interaction 在 driver 未实现前会输出 `not-run`。
   - `gap.maxAutoFixRounds`，默认 3。
   - `htmlWorkbenchMode`，MVP 默认为 `static-decision-via-agent`。
   - `flowSlugConflictPolicy`，默认 `prompt-or-append-suffix`。
@@ -295,7 +314,8 @@ Design Workflow Orchestrator
 交付：
 
 - 缺 `PRODUCT.md` 时生成或确认 Product Context。
-- 缺 `DESIGN.md` 时包装 Impeccable `document` 的 scan / seed 流程。
+- 缺 `DESIGN.md` 时，ADW 可以从代码 / CSS 扫描种子生成 `DESIGN.md.draft`，但必须明确标记为 handoff draft，不是完整设计语言生成。
+- agent 在 Claude Code / Codex 中执行 Impeccable `/document` 后，ADW 通过 import / confirm 写入最终 `DESIGN.md`。
 - 已有 `DESIGN.md` 时不静默覆盖。
 - 生成 `docs/design-system-confirmation.html`：
   - 产品调性摘要。
@@ -309,6 +329,7 @@ Design Workflow Orchestrator
 - 用户确认前不写最终根 `DESIGN.md`，或只写明确标记的 draft。
 - 确认页美观，基于模板或设计系统 shell。
 - 写入后记录 `designVersion`。
+- seed draft 必须在输出中明确提示“需 agent 执行 Impeccable /document 或人工补全”，不能伪装成完整设计语言生成。
 
 ### T5：Proposal / Prototype 探索循环 `[Stage 1 | depends: T1,T3,T4]`
 
@@ -380,7 +401,7 @@ Design Workflow Orchestrator
 
 交付：
 
-- deterministic rules：
+- ADW deterministic rules：
   - `DESIGN.md` token 使用。
   - H5 viewport。
   - safe-area。
@@ -388,14 +409,15 @@ Design Workflow Orchestrator
   - 关键状态覆盖。
   - overflow。
   - 设计稿 a11y。
-  - detector 反模式。
-- judgment review：
+  - `impeccable detect --json` 反模式。
+- judgment review / critique import：
   - 信息架构。
   - 主路径。
   - 产品命题。
   - 关键文案和状态。
   - 每条致命意见必须绑定屏幕、元素、文本或交互证据。
 - 评审结论写回 `docs/design-<flow>.md` 和 Flow Ledger。
+- Impeccable `/critique` 由 agent 执行，ADW 导入结构化评审并负责汇总、证据门禁和 Flow Ledger 写回。
 
 验收：
 
@@ -403,6 +425,7 @@ Design Workflow Orchestrator
 - judgment review 只有带证据的致命问题能阻塞。
 - 评分不作为唯一阻塞条件。
 - 设计稿 a11y 阻塞是有意策略；实现页面 a11y 在 MVP 先提醒。
+- 当前审查门不得作为“已复用 Impeccable critique”的验收依据；只有导入 agent `/critique` 结果才算 critique 复用。
 
 ### T9：Code 工作台接入 `[Stage 1 | depends: T1,T8]`
 
@@ -450,11 +473,12 @@ Design Workflow Orchestrator
   - 无法驱动的状态标记为 `not-testable`，并进入提醒项或 Design 修订建议。
 - 阻塞检查：
   - token / rule diff。
-  - state coverage。
   - DOM / semantic diff。
-  - detector。
+  - detector：来源必须是 `impeccable detect --json`。
+- not-run：
+  - state coverage（直到 state driver 完成）。
+  - interaction diff（直到 interaction driver 完成）。
 - 提醒检查：
-  - interaction diff。
   - accessibility diff。
 - 证据：
   - Playwright screenshot。
@@ -475,8 +499,9 @@ Design Workflow Orchestrator
 
 - gap report schema 通过后才能写入 Flow Ledger。
 - screenshot 不作为默认阻塞标准。
-- interaction / a11y 在 MVP 只提醒，不自动挡住 flow。
-- 明显 token、状态、DOM、detector 问题能阻塞。
+- state / interaction 当前必须诚实输出 `not-run`，不能算通过。
+- a11y 在 MVP 只提醒，不自动挡住 flow。
+- 明显 token、DOM、detector 问题能阻塞。
 - 可比区域缺失时不会强行做高置信 DOM / token 阻塞判断。
 - 每轮 gap report 有独立 `runId`，历史不被覆盖。
 
@@ -505,7 +530,8 @@ Design Workflow Orchestrator
 
 - HTML workbench 提供 live review 入口、问题列表、区域选择和确认动作。
 - MVP 中 HTML workbench 的确认动作可以由用户在对话里口述完成，再由 agent 执行 `recordPatchIntent`；不要求静态页直接写状态。
-- 真正修改运行页面时复用 Impeccable live。
+- 当前实现：只生成 live workbench、记录 PatchIntent 和 metrics。
+- 真实修改：agent 执行 Impeccable `/live` 后，ADW 导入 PatchIntent / patch refs / 复验要求；底层 live server/session 是否可脚本化另做 spike。
 - 每次 live patch 记录 `PatchIntent`：
   - 改动目标。
   - 关联设计规则。
@@ -518,7 +544,7 @@ Design Workflow Orchestrator
 - live 不作为第一道调试入口。
 - 接受 patch 后必须重新跑相关 gap。
 - 记录 live 耗时、成功率、返工次数和用户放弃点。
-- 不提前重构 live 链路；MVP 后用数据决定优化方向。
+- 当前实现不能宣称已经完成真实 live 修改，只能宣称完成 live gate、workbench、handoff 和 PatchIntent 记录。
 
 ### T13：DESIGN.md 更新门禁 `[Stage 1 | depends: T1,T8,T10]`
 
@@ -538,6 +564,69 @@ Design Workflow Orchestrator
 - 根 `DESIGN.md` 更新频率保持低频。
 - 需求级文档引用更新后的 version 或 hash。
 
+### T14：Impeccable Detect Adapter + Skill Handoff Boundary `[P0 | depends: T4,T8,T10,T12]`
+
+交付：
+
+- 新增 `Impeccable Detect Adapter`：
+  - 直接调用 `impeccable detect --json <file|dir|url>`。
+  - 解析 JSON findings：`antipattern`、`severity`、`snippet`、`file`、`line`、`description`。
+  - 接受 exit code `0` 和 `2`：`2` 代表发现问题，不代表调用失败。
+  - 对 command missing、timeout、stdout 非 JSON 明确输出 failed / not-run，不得退回自写 detector。
+- 删除 ADW 自写 detector 主路径：
+  - `design:review` 的 detector finding 只能来自 Impeccable detect。
+  - `gap:run` 的 detector check 只能来自 Impeccable detect。
+  - 如果 detector 被配置为 blocking，而 detect 不可用，则必须阻塞或显式报告 detector 未运行，不能算通过。
+- 建立 Agent Skill Handoff / Import 边界：
+  - `/document`、`/critique`、`/polish`、`/audit`、`/live` 不由 ADW CLI spawn。
+  - ADW 生成 handoff context：flow、DESIGN.md hash、design-<flow>.md/html、目标 route、当前 gate、期望输出 schema。
+  - agent 在 Claude Code / Codex 中执行对应 Impeccable skill。
+  - ADW 导入 agent skill 输出，校验 provenance 和 schema，再写 Flow Ledger / report / docs。
+- 清理错误 fallback：
+  - `design:bootstrap` 保留 draft / 确认页 / delta gate，但不能宣称运行 `/document`。
+  - `design:review` 保留 deterministic gate / evidence gate，但不能宣称运行 `/critique`。
+  - `live:*` 保留 workbench / PatchIntent / metrics，但不能宣称真实运行 `/live`。
+
+验收：
+
+- 代码中存在明确 `impeccable-detect` adapter 层，而不是在各命令里散落调用逻辑。
+- ADW 自写 detector 规则被删除或不再被任何主路径引用。
+- design review 和 gap report 能记录 detector 来源：`source: impeccable-detect`。
+- `document` / `critique` / `polish` / `audit` / `live` 在文档、命令输出和代码注释中都不再写成 ADW CLI 可直接调用。
+- handoff context 和 import schema 至少覆盖 `/document` 与 `/critique`，后续再扩到 `/polish`、`/audit`、`/live`。
+
+### T15：State / Interaction Driver `[P0 | depends: T7,T9,T10]`
+
+交付：
+
+- 为 `docs/design-<flow>.md` 中的状态驱动方式建立运行时执行协议：
+  - mock response。
+  - fixture。
+  - query param。
+  - feature flag。
+  - seed data。
+  - test hook。
+- gap loop 能把实现页推进到声明状态：
+  - empty。
+  - loading。
+  - error。
+  - success。
+  - boundary。
+- interaction driver 能执行关键交互：
+  - click。
+  - input。
+  - expand / collapse。
+  - scroll。
+  - keyboard / safe-area 相关场景。
+- 对无法驱动的状态或交互输出 `not-testable`，并给出补驱动建议。
+
+验收：
+
+- state 不再默认 `not-run`；有 driver 的状态必须真实采集并生成检查结果。
+- interaction 不再默认 `not-run`；有 driver 的交互必须真实执行并记录结果。
+- 没有 driver 的状态 / 交互不能静默通过。
+- driver 失败不导致整个 gap loop 崩溃，而是写入 failed / not-testable report。
+
 ## 8. 阶段计划
 
 ### Stage 0：手动编排验证
@@ -549,9 +638,9 @@ Design Workflow Orchestrator
 1. 抽样读取已有 `DESIGN.md`、`PRODUCT.md`、`.impeccable/` 和多组 `docs/design-<flow>.md/html`。
 2. 检查需求级文档是否有机器可读状态清单、目标 route、验收规则。
 3. 用现有产物手工跑一次设计稿审查门。
-4. 对一个已有实现页跑最小 gap：token / state / DOM / detector 阻塞，interaction / a11y 提醒，截图做证据。
+4. 对一个已有实现页跑最小 gap：token / DOM / detector 阻塞，state / interaction 标 `not-run`，a11y 提醒，截图做证据。
 5. 手工记录一个 Flow Ledger 样例。
-6. 用 Impeccable critique / live / polish 完成一轮修复。
+6. 如 Impeccable skill 可用，由 agent 手工执行 `/critique` / `/live` / `/polish` 完成一轮修复，并把结果导入 ADW；只跑 CLI 时必须标记为未执行 skill。
 7. 记录误判、噪声、修复耗时、产物缺口。
 
 通过标准：
@@ -564,6 +653,8 @@ Design Workflow Orchestrator
 ### Stage 1：MVP
 
 目标：把 Stage 0 手动步骤固化成可重复命令或最小 UI。
+
+当前状态：已完成 ADW fallback MVP。T0-T13 已实现并验证，覆盖配置、Flow Ledger、模板、扫描、Proposal、Design、Review、Code Context、Gap、Autofix、Live Workbench、DESIGN.md delta gate。
 
 新增：
 
@@ -582,6 +673,25 @@ Design Workflow Orchestrator
 - 中断后能续跑。
 - 产物命名稳定，历史可追踪。
 - `DESIGN.md` 不被日常需求污染。
+- 不把 fallback 误报为 Impeccable 集成。
+
+### Stage 1.5：P0 清债重构
+
+目标：清掉错误替代实现，把系统重构为 Agent 主控 + ADW 确定性底座。
+
+新增：
+
+- T14 Impeccable Detect Adapter + Skill Handoff Boundary。
+- T15 State / Interaction Driver。
+
+通过标准：
+
+- `design:review` 和 `gap:run` 的 detector 只来自 `impeccable detect --json`。
+- ADW 自写 detector 主路径被删除。
+- `design:bootstrap` / `design:review` / `live:*` 不再宣称 CLI 直接调用 `/document`、`/critique`、`/live`。
+- 至少具备 `/document` 和 `/critique` 的 handoff / import 协议。
+- state / interaction 不再默认 `not-run`；有 driver 的状态和交互能真实采集。
+- 保留底座能力标清 `source` 和 provenance，不会和 agent skill 或 Impeccable detect 混淆。
 
 ### Stage 2：增强版
 
@@ -589,7 +699,7 @@ Design Workflow Orchestrator
 
 新增：
 
-- token / state / DOM / detector 检查降噪和扩大覆盖。
+- token / DOM / detector 检查降噪和扩大覆盖；state 在 driver 完成后再纳入运行期覆盖。
 - 稳定的 interaction / a11y 规则从提醒升级为阻塞。
 - H5-first knobs 和本地 deterministic patch。
 - Product Context adapter。
@@ -615,19 +725,28 @@ Design Workflow Orchestrator
 
 MVP 验收必须满足：
 
-- [ ] 无本机绝对路径硬编码。
-- [ ] 有 `docs/design-<flow>.workflow.json` 记录 flow 状态和产物台账。
-- [ ] 中断后可以续跑。
-- [ ] 没有把需求级内容写进根 `DESIGN.md`。
-- [ ] 没有跳过 Proposal / Prototype 探索循环。
-- [ ] HTML 原型和设计稿美观，可用于认真评审。
-- [ ] 用户至少在原型选择、正式设计批准、人工 live 修复中有明确决策点。
-- [ ] Impeccable 能力被复用，而不是重造 critique / live / detector。
-- [ ] 设计稿审查门有 deterministic rules 和 judgment review。
-- [ ] gap report 使用阻塞 / 提醒 / 证据三档。
-- [ ] 自动修复不会越权改全局设计语言。
-- [ ] 自动修复 patch 可回滚，且每轮阻塞问题数量必须下降。
-- [ ] `DESIGN.md` 只有经当前操作者确认的 delta 才会更新。
+已满足的 T0-T13 验收：
+
+- [x] 无本机绝对路径硬编码。
+- [x] 有 `docs/design-<flow>.workflow.json` 记录 flow 状态和产物台账。
+- [x] 中断后可以续跑。
+- [x] 没有把需求级内容写进根 `DESIGN.md`。
+- [x] 没有跳过 Proposal / Prototype 探索循环。
+- [x] HTML 原型和设计稿可用于评审。
+- [x] 用户至少在原型选择、正式设计批准、人工 live 修复中有明确决策点。
+- [x] 设计稿审查门有 deterministic rules 和 judgment review fallback。
+- [x] gap report 使用阻塞 / 提醒 / 证据 / not-run 分档。
+- [x] 自动修复不会越权改全局设计语言。
+- [x] 自动修复 patch 可回滚，且每轮阻塞问题数量必须下降。
+- [x] `DESIGN.md` 只有经当前操作者确认的 delta 才会更新。
+
+尚未满足的 P0 验收：
+
+- [ ] `impeccable detect --json` 被真实接入，而不是 ADW fallback detector。
+- [ ] ADW 自写 detector 主路径被删除。
+- [ ] `/document` 和 `/critique` 建立 handoff / import 协议，而不是被写成 CLI 直接调用。
+- [ ] `live:*` 明确是 workbench / PatchIntent / `/live` handoff，不宣称 CLI 已真实修改页面。
+- [ ] state / interaction runtime driver 能真实驱动和验证声明状态 / 交互。
 
 ## 10. 风险与缓解
 
@@ -638,24 +757,25 @@ MVP 验收必须满足：
 | 探索循环变成长问卷 | 用户被连续追问 | 一次只问一个问题，每问给推荐答案，信息足够即发散 |
 | HTML 产物丑 | 用户不信任方案 | 强制模板 registry + 浏览器截图检查 |
 | `DESIGN.md` 腐化 | 每个需求都改全局规则 | delta proposal + 当前操作者确认 |
-| Impeccable 被绕开 | 自建重复能力 | 明确 critique/live/detector/polish 复用边界 |
+| Impeccable 被绕开 | 自建重复能力 | 当前已发生；P0 删除自写 detector，skill 走 handoff / import |
 | gap 误判 | 响应式差异或 a11y 噪声误杀 | 阻塞 / 提醒 / 证据三档 |
 | screenshot 误导 | 手机壳和状态栏造成大量噪声 | screenshot 只做 visual evidence |
-| live 太慢 | 高频修改都等模型 | MVP 先复用并记录数据，阶段 2 加 knobs 和 deterministic patch |
+| state / interaction 空挡 | 设计门声明了状态，但运行页没有真实驱动 | P0 做 State / Interaction Driver；未驱动时标 `not-run` / `not-testable` |
+| live 名实不符 | 只有 live workbench 和 PatchIntent，没有真实页面修改 | 真实修改走 agent `/live` handoff；接入前不宣称 CLI 已完成 live 修改 |
+| live 太慢 | 高频修改都等模型 | 记录 `/live` handoff 数据，阶段 2 加 knobs 和 deterministic patch |
 | Product Context 冲突 | README/AGENTS/PRODUCT 各说各话 | MVP 兼容，后续 adapter 化 |
 | CI 登录失败 | CI 没有人工浏览器会话 | 阶段 3 引入程序化登录、测试账号或预置 session |
 
 ## 11. 仍需确认但不阻塞
 
-1. Stage 0 抽样哪几组已有 `docs/design-<flow>.md/html`。
-2. 模板 registry 是 vendoring 模板，还是作为独立 package 依赖。
-3. `docs/design-<flow>.workflow.json` 是否需要单独 JSON schema 文件。
-4. gap report 可读摘要优先 HTML 还是 Markdown。
-5. Stage 1 的 orchestrator 是先做 CLI 命令，还是作为 Codex skill 脚本。
+1. `/live` 的底层 server/session 是否可脚本化；在证明前只作为 agent skill handoff。
+2. `/document`、`/critique`、`/polish`、`/audit`、`/live` 的 import schema 优先级。
+3. State / Interaction Driver 优先支持哪类驱动：mock response、fixture、query param、test hook。
+4. 模板 registry 是 vendoring 模板，还是作为独立 package 依赖。
 
 ## 12. 变更前风险自检
 
-- **复用分析**：Impeccable 的 `init/document/critique/audit/live/polish/detector` 直接复用；HTML 模板体系作为 registry 参考；superpowers brainstorming 和 grill-me 的问答协议作为 Proposal 工作台参考。
-- **抽象分析**：Flow Ledger 是必要控制面，不是平台级过度抽象；没有它无法续跑、复盘和并行跑多条 flow。
-- **破坏性分析**：本文档不改现有 API、数据库、worker、启动脚本或代码实现。后续实现写入根 `DESIGN.md` 必须走确认门禁。
-- **影响分析**：影响后续 AI Design Workflow MVP 的实施顺序、产物路径和验收口径；不影响当前 SDD telemetry 运行链路。
+- **复用分析**：`impeccable detect --json` 是可直接复用的 callable tool；`document/critique/audit/live/polish` 是 agent skill，复用方式是 handoff / import，不是 CLI spawn。
+- **抽象分析**：Flow Ledger 是必要控制面；新增 callable detect adapter 和 skill handoff / import 两个 seam，避免再次把外部能力散落或误分类。
+- **破坏性分析**：重构会改变 detector 结果来源，并删除 ADW 自写 detector 主路径；Flow Ledger / artifact / gap token-DOM / delta gate 应保持兼容。
+- **影响分析**：影响后续 AI Design Workflow 的实施优先级和对外叙述；核心变化是从“ADW fallback MVP”转为“Agent 主控 + ADW 底座，并清洗错误替代实现”。
