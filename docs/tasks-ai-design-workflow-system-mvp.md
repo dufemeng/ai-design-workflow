@@ -406,15 +406,16 @@ Design Workflow Orchestrator
 
 交付：
 
-- ADW deterministic rules：
-  - `DESIGN.md` token 使用。
-  - H5 viewport。
-  - safe-area。
-  - tap target。
-  - 关键状态覆盖。
-  - overflow。
-  - 设计稿 a11y。
-  - `impeccable detect --json` 反模式。
+- ADW deterministic rules — **静态子集**（不开浏览器，T8 实际执行）：
+  - `DESIGN.md` token 使用（漂移做提醒，不阻塞）。
+  - H5 viewport meta（缺 `width=device-width` 阻塞）。
+  - safe-area 引用（声明需要但未引用 → 提醒）。
+  - tap target **声明值**（`tapTargetMinPx < 44` 阻塞；真实点击几何属浏览器子集）。
+  - 关键状态覆盖（屏幕 0 状态 / 缺 error 阻塞）。
+  - 设计稿 a11y（lang / title / img alt / 可访问名称，阻塞）。
+  - `impeccable detect --json` 反模式（detector，来自 adapter）。
+- **浏览器子集**（需渲染几何，不在 T8 静态层，留给 T10 / T18 在浏览器里查）：
+  - overflow、真实 tap 几何、对比度。
 - judgment review / critique import：
   - 信息架构。
   - 主路径。
@@ -459,25 +460,14 @@ Design Workflow Orchestrator
 
 交付：
 
-- 输入：
+- 输入（T10 当前）：
   - Flow Ledger。
-  - Design HTML（仅作 T18 baseline diff 的输入；T10 当前不加载用于比对）。
   - implementation page URL。
-  - `DESIGN.md` version。
+  - `DESIGN.md` version 与调色板。
   - viewport 列表。
-  - 状态驱动方式清单。
-- 可比区域准备：
-  - HTML 设计稿必须标记可比主体区域，例如 `data-design-surface="main"`。
-  - 手机壳、状态栏、注释、标尺、候选说明等审阅 chrome 必须标记为不可比区域，例如 `data-design-chrome`。
-  - implementation page 需要通过 route、selector 或 main landmark 定位对应主体区域。
-  - 没有可比区域标记时，DOM / token diff 只能降级为提醒或要求回到 Design 补标记。
-- 状态驱动：
-  - `empty`：fixture、query 参数或 mock 空响应。
-  - `loading`：延迟 mock、loading flag 或可控 suspense 状态。
-  - `error`：mock 500、rejected promise 或错误 fixture。
-  - `success`：默认成功 fixture。
-  - `boundary`：长文本、大列表、零值、最大值、异常字符等 fixture。
-  - 无法驱动的状态标记为 `not-testable`，并进入提醒项或 Design 修订建议。
+- **不属于 T10、已移交的输入与准备**（写在这里只为说明边界，排期归对应任务）：
+  - Design HTML baseline、可比区域标记（`data-design-surface` / `data-design-chrome`）、surface↔landmark 对齐、缺标记时的降级策略 → **T18**（设计稿 baseline diff）。
+  - 状态驱动方式清单，以及 empty/loading/error/success/boundary 的运行时驱动与 `not-testable` 标记 → **T15**（state/interaction driver）。
 - 阻塞检查（T10 当前能力）：
   - token / rule 比对：实现页 computed color vs `DESIGN.md` 调色板（不是 vs 设计稿）。
   - DOM 健康检查：页面非空白、有 `<title>`/`h1` 等基本结构（**非** 与设计稿的 semantic diff —— 那是 T18）。
@@ -498,9 +488,8 @@ Design Workflow Orchestrator
 
 实现口径：
 
-- DOM diff 不做逐节点像素级或源码级对齐，只比较语义层：关键文本、role、主要区块、可交互元素、状态容器和验收选择器。
-- token diff 先 normalize 再比较：颜色统一成 RGBA，单位统一成 px，数值允许小数舍入，字体允许 fallback 族，line-height / letter-spacing / opacity 允许配置容差。
-- chrome 剥离和 token 容差必须写入 gap report，方便判断误杀来源。
+- （T10 当前）token 比对先 normalize 再比较：颜色统一成 RGBA，单位统一成 px，数值允许小数舍入，字体允许 fallback 族，line-height / letter-spacing / opacity 允许配置容差；容差写入 gap report。
+- （T18 口径，非 T10）设计稿 baseline 的 DOM diff 不做逐节点像素级或源码级对齐，只比较语义层：关键文本、role、主要区块、可交互元素、状态容器和验收选择器；chrome 剥离写入 report 以判断误杀来源。
 
 > **当前实现差距（必须写实）：** 现版 `gap:run` **不加载 `design-<flow>.html` 做 baseline diff**。`dom` 检查只是「页面非空白 + 有 title/h1」的体检；`token` 比的是全局 `DESIGN.md` 调色板，不是设计稿。也就是说本节描述的「实现页 vs 设计稿」语义/DOM diff 仍是目标态，落地见 **T18**。在 T18 完成前，文档不得宣称 gap 已经在对齐设计稿。
 
@@ -510,9 +499,9 @@ Design Workflow Orchestrator
 - screenshot 不作为默认阻塞标准。
 - state / interaction 当前必须诚实输出 `not-run`，不能算通过。
 - a11y 在 MVP 只提醒，不自动挡住 flow。
-- 明显 token、DOM、detector 问题能阻塞。
-- 可比区域缺失时不会强行做高置信 DOM / token 阻塞判断。
-- 每轮 gap report 有独立 `runId`，历史不被覆盖。
+- 明显 token、dom 健康、detector 问题能阻塞。
+- 每轮 gap report 有独立 runId（`gap-report-<runId>.json/.html`），历史不被覆盖，另写 `gap-report-latest.*` 指针。（已实现，`verify-cli-flow` 断言四件套落盘。）
+- （T18 验收，非 T10）可比区域缺失时不强行做高置信 baseline DOM / token 阻塞判断。
 
 ### T11：自动修复 loop `[Stage 1 | depends: T1,T10]`
 
@@ -606,8 +595,19 @@ Design Workflow Orchestrator
 
 - `<skill>` ∈ `document | critique | polish | audit | live`。
 - handoff context JSON 字段：`flowId`、`stage`、`gate`、`designVersion`（DESIGN.md hash）、`inputRefs`（design-<flow>.md/html、目标 route、相关 gap report）、`expectedOutputSchema`（agent 应产出的结构）。
-- import result JSON 必须带 provenance：`source: agent-skill`、`skill`、`agentHarness: codex | claude-code | other`、`inputRefs`、`outputRefs`、`designVersion`、`confirmedBy`。schema 校验不过、provenance 缺失或 `designVersion` 与当前 ledger 不一致时，import 必须拒绝并给人话原因，不得部分写入。
-- MVP 先实现 `document` 与 `critique` 的 handoff/import；`polish` / `audit` / `live` 复用同一命令骨架，按优先级补 schema。
+- import result JSON 必须带通用 provenance：`source: agent-skill`、`skill`、`agentHarness: codex | claude-code | other`、`inputRefs`、`outputRefs`、`designVersion`、`confirmedBy`。schema 校验不过、provenance 缺失或 `designVersion` 与当前 ledger 不一致时，import 必须拒绝并给人话原因，不得部分写入。
+- MVP 先实现 `document` 与 `critique` 的 per-skill schema（其余复用骨架按优先级补）：
+
+  **`import:document`**（agent 跑完 `/document` 的产物）
+  - 必填字段：`designMdContent`（string，完整 DESIGN.md 正文）、`sidecar`（object | null，`.impeccable/design.json` 内容）、`tokensSummary`（object：colors / typography 等，用于确认页与 delta 比对）。
+  - 校验：`designMdContent` 能被现有 `parseDesignMd` 解析（frontmatter 六节齐全），否则拒绝。
+  - 写回：**不直接覆盖根 `DESIGN.md`**。走现有 delta gate —— 落 draft + 渲染确认页，经 `designmd:confirm-delta` 显式确认后才写，并记 `designVersion`。
+
+  **`import:critique`**（agent 跑完 `/critique` 的产物）
+  - 必填字段：`findings[]`，每条：`dimension ∈ {ia, main-path, product-thesis, copy, state}`、`severity ∈ {fatal, advisory}`、`message`、`evidence{screen?|element?|text?|interaction?}`。
+  - 校验：复用 T8 证据门禁 —— `fatal` 但 `evidence` 全空的不计入阻塞（落 `fatalWithoutEvidence`）；schema 不合法整体拒绝。
+  - 写回：合并进 `runReviewGate` 的 judgment 输入，写 `design-review.json` 与 `design-<flow>.md` 结论、回写 ledger `reviewStatus`，provenance 标 `source: agent-skill / skill: critique`（区别于 ADW 自带 deterministic + detector）。
+- `polish` / `audit` / `live` 复用同一命令骨架，schema 按优先级后补。
 - （T14a，已完成）清理错误 fallback 宣称：
   - `design:bootstrap` 保留 draft / 确认页 / delta gate，但不能宣称运行 `/document`。
   - `design:review` 保留 deterministic gate / evidence gate，但不能宣称运行 `/critique`。
@@ -656,7 +656,7 @@ Design Workflow Orchestrator
 
 ### T16：Flow 生命周期命令闭环 `[P0 | ✅ 已实现 | depends: T1]`
 
-状态：✅ 已实现并冒烟验证（`flow:create` / `proposal:answer` / `design:approve` / `flow:done`）。
+状态：✅ 已实现（`flow:create` / `proposal:answer` / `design:approve` / `flow:done`），并由 `scripts/verify-cli-flow.mjs` 跑真实 `dist/cli.js` 做端到端回归（`flow:create → … → flow:done`，纳入 `npm test`），不再是一次性手动冒烟。
 
 背景：`createFlow` / `recordQuestionAnswer` / `approveDesign` / `markDone` 四个 FlowAction
 当初有定义和 invariant，却没有任何 CLI 命令能触发，导致 flow 经 CLI 不可创建、不可从 Design
@@ -860,7 +860,7 @@ MVP 验收必须满足：
 - [x] flow 生命周期四个命令接线，闭环可经 CLI 端到端跑通（T16）。
 - [x] `impeccable detect --json` 被真实接入，而不是 ADW fallback detector（T14a）。
 - [x] ADW 自写 detector 主路径被删除（T14a）。
-- [x] `verify-*.mjs` 行为测试全绿，`npm test` 聚合可一键复验。
+- [x] `verify-*.mjs` 行为测试全绿，`npm test` 聚合可一键复验；含 `verify-cli-flow.mjs` 跑真实 CLI 的 `flow:create → … → flow:done` 端到端回归。
 
 尚未满足的 P0 验收：
 
