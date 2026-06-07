@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { ConfigError, loadConfig } from './config/index.js';
-import { FlowLedgerStore, InvariantError, LedgerError } from './flow/index.js';
+import { ExplorationDimensionSchema, FlowLedgerStore, InvariantError, LedgerError } from './flow/index.js';
 import { loadRegistry, RegistryError, type TemplateScenario, TemplateScenarioSchema } from './templates/index.js';
 import { retrospect, scanProject } from './scan/index.js';
 import { bootstrapDesignLanguage, confirmDesignLanguage, DesignBootstrapError, confirmDesignDelta, DesignDeltaError, DesignDeltaInputSchema, proposeDesignDelta } from './design/index.js';
@@ -56,6 +56,30 @@ function flowStatus(targetDir: string, slug: string | undefined): number {
     }
     throw err;
   }
+}
+
+function flowCreate(targetDir: string, slug: string | undefined, title: string | undefined): number {
+  if (!slug || !title) {
+    console.error('用法：adw flow:create <目标项目目录> <flow-slug> <用户可读标题>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const ledger = new FlowLedgerStore(targetDir, config.artifactDir).create({ slug, title });
+  console.log(`已创建 flow「${ledger.title}」（${slug}）。`);
+  console.log(`下一步：${ledger.resumePointer.hint}`);
+  return 0;
+}
+
+function flowDone(targetDir: string, slug: string | undefined, flags: string[]): number {
+  if (!slug) {
+    console.error('用法：adw flow:done <目标项目目录> <flow-slug> [--accept-warnings]');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const acceptRemainingWarnings = flags.includes('--accept-warnings');
+  const l = new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, { type: 'markDone', acceptRemainingWarnings });
+  console.log(`flow「${l.title}」已标记完成：设计产物与实现页面对齐。`);
+  return 0;
 }
 
 function templatesList(targetDir: string): number {
@@ -141,6 +165,32 @@ function designConfirm(targetDir: string): number {
     }
     throw err;
   }
+}
+
+function proposalAnswer(targetDir: string, slug: string | undefined, question: string | undefined, answer: string | undefined, flags: string[]): number {
+  if (!slug || !question || !answer) {
+    console.error('用法：adw proposal:answer <目标项目目录> <flow-slug> <问题> <回答> [--assumption 假设] [--resolved 已解决问题] [--new-open 新开问题] [--dimension target-user|core-scenario|main-path|key-states|constraints|success-criteria]');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const flag = (name: string): string | undefined => {
+    const i = flags.indexOf(name);
+    return i >= 0 ? flags[i + 1] : undefined;
+  };
+  const dimRaw = flag('--dimension');
+  const resolvesDimension = dimRaw ? ExplorationDimensionSchema.parse(dimRaw) : undefined;
+  const l = new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, {
+    type: 'recordQuestionAnswer',
+    question,
+    answer,
+    assumption: flag('--assumption'),
+    resolvedQuestion: flag('--resolved'),
+    newOpenQuestion: flag('--new-open'),
+    resolvesDimension,
+  });
+  const conv = convergence(l);
+  console.log(`已记录问答。探索收敛：${conv.summary}`);
+  return 0;
 }
 
 function proposalStatus(targetDir: string, slug: string | undefined): number {
@@ -251,6 +301,17 @@ function designReview(targetDir: string, slug: string | undefined, judgmentPath:
     }
     throw err;
   }
+}
+
+function designApprove(targetDir: string, slug: string | undefined): number {
+  if (!slug) {
+    console.error('用法：adw design:approve <目标项目目录> <flow-slug>');
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  const l = new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, { type: 'approveDesign' });
+  console.log(`已批准设计，进入 ${l.currentStage} 阶段。下一步：${l.resumePointer.hint}`);
+  return 0;
 }
 
 function codeContext(targetDir: string, slug: string | undefined): number {
@@ -462,6 +523,8 @@ async function main(argv: string[]): Promise<number> {
         return codeTarget(argv[1] ?? process.cwd(), argv[2], argv[3], argv.slice(4));
       case 'gap:run':
         return await gapRun(argv[1] ?? process.cwd(), argv[2], argv[3], argv.slice(4));
+      case 'proposal:answer':
+        return proposalAnswer(argv[1] ?? process.cwd(), argv[2], argv[3], argv[4], argv.slice(5));
       case 'proposal:status':
         return proposalStatus(argv[1] ?? process.cwd(), argv[2]);
       case 'proposal:generate':
@@ -472,14 +535,20 @@ async function main(argv: string[]): Promise<number> {
         return designFlowGenerate(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'design:review':
         return designReview(argv[1] ?? process.cwd(), argv[2], argv[3]);
+      case 'design:approve':
+        return designApprove(argv[1] ?? process.cwd(), argv[2]);
       case 'design:bootstrap':
         return designBootstrap(argv.slice(1));
       case 'design:confirm':
         return designConfirm(argv[1] ?? process.cwd());
       case 'config:check':
         return configCheck(argv[1] ?? process.cwd());
+      case 'flow:create':
+        return flowCreate(argv[1] ?? process.cwd(), argv[2], argv[3]);
       case 'flow:status':
         return flowStatus(argv[1] ?? process.cwd(), argv[2]);
+      case 'flow:done':
+        return flowDone(argv[1] ?? process.cwd(), argv[2], argv.slice(3));
       case 'templates:list':
         return templatesList(argv[1] ?? process.cwd());
       case 'templates:recommend':
@@ -489,7 +558,7 @@ async function main(argv: string[]): Promise<number> {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:status|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|code:*|gap:run|gap:autofix-plan|live:*> ...');
+        console.error('用法：adw <config:check|flow:create|flow:status|flow:done|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|code:*|gap:run|gap:autofix-plan|live:*> ...');
         return 2;
     }
   } catch (err) {
