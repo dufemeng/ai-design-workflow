@@ -64,17 +64,30 @@ export function renderGapHtml(report: GapReport): string {
 export interface WriteGapResult {
   jsonRel: string;
   jsonPath: string;
+  htmlRel: string;
   htmlPath: string;
+  latestJsonRel: string;
+  latestHtmlRel: string;
 }
 
-/** 每轮 gap report 单独留档（gap-report-<round>.json），另写一份 gap-report.html 看最新。 */
+/**
+ * 每轮 gap report 独立留档，历史不被覆盖：gap-report-<runId>.json/.html（runId = 递增轮次）。
+ * 另写 gap-report-latest.json/.html 指向最新一轮，给「只想看最新」的消费方。
+ */
 export function writeGapReport(targetDir: string, config: AdwConfig, slug: string, report: GapReport, round: number): WriteGapResult {
   const dir = join(config.artifactDir, 'assets', slug);
   const jsonRel = join(dir, `gap-report-${round}.json`);
+  const htmlRel = join(dir, `gap-report-${round}.html`);
+  const latestJsonRel = join(dir, 'gap-report-latest.json');
+  const latestHtmlRel = join(dir, 'gap-report-latest.html');
   const jsonPath = join(targetDir, jsonRel);
-  const htmlPath = join(targetDir, dir, 'gap-report.html');
+  const htmlPath = join(targetDir, htmlRel);
   mkdirSync(dirname(jsonPath), { recursive: true });
-  writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  writeFileSync(htmlPath, renderGapHtml(report), 'utf8');
-  return { jsonRel, jsonPath, htmlPath };
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  const html = renderGapHtml(report);
+  writeFileSync(jsonPath, json, 'utf8');
+  writeFileSync(htmlPath, html, 'utf8');
+  writeFileSync(join(targetDir, latestJsonRel), json, 'utf8');
+  writeFileSync(join(targetDir, latestHtmlRel), html, 'utf8');
+  return { jsonRel, jsonPath, htmlRel, htmlPath, latestJsonRel, latestHtmlRel };
 }
