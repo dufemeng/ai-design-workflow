@@ -4,6 +4,7 @@ import type { AdwConfig } from '../config/schema.js';
 import { parseDesignMd } from '../design/index.js';
 import { parseDesignFlow } from '../design-flow/index.js';
 import { FlowLedgerStore } from '../flow/index.js';
+import { formatImpeccableFinding, runImpeccableDetect, type ImpeccableDetectResult } from '../impeccable/index.js';
 import { type DeterministicFinding, runDeterministicRules } from './deterministic.js';
 import { evaluateJudgment, type JudgmentEvaluation, type JudgmentInput } from './judgment.js';
 
@@ -21,6 +22,7 @@ export interface ReviewResult {
   passed: boolean;
   blockingReasons: string[];
   deterministicFindings: DeterministicFinding[];
+  detector: ImpeccableDetectResult;
   judgment: JudgmentEvaluation;
   /** 参考分，不作为阻塞条件。 */
   score: number;
@@ -37,6 +39,25 @@ function computeScore(det: DeterministicFinding[], jeval: JudgmentEvaluation): n
   s -= jeval.fatalWithoutEvidence.length * 1;
   s -= jeval.advisory.length * 1;
   return Math.max(0, s);
+}
+
+function detectorFindings(result: ImpeccableDetectResult): DeterministicFinding[] {
+  if (!result.ok) {
+    return [
+      {
+        rule: 'detector',
+        severity: 'block',
+        message: `Impeccable detect 未完成：${result.message}`,
+        evidence: result.command ?? undefined,
+      },
+    ];
+  }
+  return result.findings.map((f) => ({
+    rule: `detector:${f.antipattern}`,
+    severity: f.severity === 'advisory' ? 'advisory' : 'block',
+    message: formatImpeccableFinding(f),
+    evidence: result.command,
+  }));
 }
 
 /**
@@ -59,7 +80,8 @@ export function runReviewGate(targetDir: string, config: AdwConfig, slug: string
     palette = Object.values(parseDesignMd(readFileSync(designMdPath, 'utf8')).tokens.colors);
   }
 
-  const deterministicFindings = runDeterministicRules(html, spec, palette);
+  const detector = runImpeccableDetect(htmlPath, { cwd: targetDir });
+  const deterministicFindings = [...runDeterministicRules(html, spec, palette), ...detectorFindings(detector)];
   const detBlock = deterministicFindings.filter((d) => d.severity === 'block');
   const jeval = evaluateJudgment(judgment);
 
@@ -71,14 +93,14 @@ export function runReviewGate(targetDir: string, config: AdwConfig, slug: string
   const score = computeScore(deterministicFindings, jeval);
 
   const reportPath = join(targetDir, config.artifactDir, 'assets', slug, 'design-review.json');
-  writeJson(reportPath, { slug, passed, score, blockingReasons, deterministicFindings, judgment: jeval, at: new Date().toISOString() });
+  writeJson(reportPath, { slug, passed, score, blockingReasons, deterministicFindings, detector, judgment: jeval, at: new Date().toISOString() });
 
   appendConclusion(mdPath, mdContent, passed, score, blockingReasons);
 
   // 写回 ledger（runDesignReview 要求已在 design 阶段且 attach 过设计稿）。
   new FlowLedgerStore(targetDir, config.artifactDir).apply(slug, { type: 'runDesignReview', passed, blockingReasons });
 
-  return { passed, blockingReasons, deterministicFindings, judgment: jeval, score, reportPath };
+  return { passed, blockingReasons, deterministicFindings, detector, judgment: jeval, score, reportPath };
 }
 
 function appendConclusion(mdPath: string, mdContent: string, passed: boolean, score: number, reasons: string[]): void {

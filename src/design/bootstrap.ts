@@ -60,7 +60,7 @@ export function bootstrapDesignLanguage(targetDir: string, config: AdwConfig, op
   const draftContent = buildSeedDraft(seeds);
   write(draftPath, draftContent);
   write(confirmationPath, renderConfirmationHtml(parseDesignMd(draftContent), { isDraft: true, designVersion: null, sourceNote: `代码扫描种子（${Object.keys(seeds).length} 个候选颜色）` }));
-  notes.push(`${config.designMdPath} 缺失：已生成 DRAFT 种子（含 ${Object.keys(seeds).length} 个候选颜色），需 Impeccable document 或人工补全后 design:confirm。`);
+  notes.push(`${config.designMdPath} 缺失：已生成 DRAFT 种子（含 ${Object.keys(seeds).length} 个候选颜色），需 agent 执行 Impeccable /document 或人工补全后 design:confirm。`);
   return { action: 'seed-draft', designMdPath, draftPath, confirmationPath, designVersion: null, notes };
 }
 
@@ -101,7 +101,7 @@ typography:
 # Design System（DRAFT 种子）
 
 ## 1. Overview
-TODO：产品视觉方向。本草稿由扫描种子生成，需 Impeccable document 或人工补全。
+TODO：产品视觉方向。本草稿由扫描种子生成，需 agent 执行 Impeccable /document 或人工补全。
 
 ## 2. Colors
 上方 frontmatter 的颜色来自代码扫描候选，需人工命名与取舍。

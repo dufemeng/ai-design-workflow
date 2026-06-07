@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "AI Design Workflow System — 可安装、跨项目的设计到代码工作流编排器。对目标仓库运行，编排 Impeccable、gap 验证与 live 修复。",
+  "description": "AI Design Workflow System — 给 Claude Code / Codex agent 调用的设计到代码工作流底座，提供 Flow Ledger、gap 验证、Impeccable detect 和 handoff/import 协议。",
   "bin": {
     "adw": "./dist/cli.js"
   },

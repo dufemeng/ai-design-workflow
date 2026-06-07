@@ -2,8 +2,9 @@ import type { DesignFlowSpec } from '../design-flow/index.js';
 
 /**
  * T8 确定性规则（静态子集）。在不开浏览器的前提下能查的：viewport、tap-target 声明、
- * 状态覆盖、设计稿 a11y、AI slop、token 漂移。
+ * 状态覆盖、设计稿 a11y、token 漂移。
  * 需要渲染几何的（overflow、真实 tap 几何、对比度）留给 T10 gap loop 在浏览器里查。
+ * detector 维度只允许来自 Impeccable detect adapter，不在这里用薄版规则替代。
  */
 
 export interface DeterministicFinding {
@@ -55,11 +56,6 @@ export function runDeterministicRules(html: string, spec: DesignFlowSpec, palett
       if (!inner && !/aria-label\s*=/i.test(attrs)) block('a11y', `<${tag}> 没有可访问名称（无文本也无 aria-label）。`, m[0].slice(0, 60));
     }
   }
-
-  // detector：明显 AI slop
-  if (/lorem ipsum/i.test(html)) block('detector', '出现 lorem ipsum 占位文案。');
-  if (/>\s*click here\s*</i.test(html)) block('detector', '出现「Click here」泛化文案。');
-  if (/\bTODO\b/.test(html)) advise('detector', '设计稿里残留 TODO。');
 
   // token 漂移（有 DESIGN.md 调色板时，做提醒不阻塞——静态阶段噪声大）
   if (palette && palette.length > 0) {

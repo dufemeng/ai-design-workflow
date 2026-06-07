@@ -27,7 +27,8 @@ export interface LiveWorkbenchResult {
 /**
  * T12：生成人工 live review workbench。
  * 硬约束：必须先有 gap 报告才能进 live —— live 不是第一道调试入口，
- * 只处理自动 loop 修不了 / 判不准的问题。真正改运行页面复用 Impeccable live。
+ * 只处理自动 loop 修不了 / 判不准的问题。真正改运行页面由 agent 执行 Impeccable /live，
+ * 或使用未来经 spike 证明可脚本化的 live server/session。
  */
 export function generateLiveWorkbench(targetDir: string, config: AdwConfig, slug: string): LiveWorkbenchResult {
   const ledger = new FlowLedgerStore(targetDir, config.artifactDir).read(slug);
@@ -68,7 +69,7 @@ export function generateLiveWorkbench(targetDir: string, config: AdwConfig, slug
   <div class="meta">实现页面 route：${esc(route)} · 来自最近一轮 gap（阻塞 ${report.blockingCount} / 提醒 ${report.warningCount}）</div>
   <ul>${items || '<li>没有需人工处理的问题。</li>'}</ul>
   <div class="note">
-    在页面上选区域、真正改运行页面：复用 <b>Impeccable live</b>（H5-first、本地 patch + 参数 knob 优先，别每个小改都等大模型）。<br/>
+    在页面上选区域、真正改运行页面：由 agent 执行 <b>Impeccable /live</b>，或使用未来经验证可脚本化的 live server/session（H5-first、本地 patch + 参数 knob 优先）。<br/>
     每次改动用 <code>adw live:record</code> 记一条 PatchIntent；<b>接受 patch 后必须重跑相关 gap</b> 复验。
   </div>
 </main></body></html>

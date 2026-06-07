@@ -8,6 +8,7 @@ export const CheckResultSchema = z.object({
   check: GapCheckSchema,
   status: z.enum(['pass', 'block', 'advisory', 'not-run']),
   findings: z.array(z.string()),
+  source: z.string().optional(),
 });
 
 export const GapReportSchema = z.object({
@@ -35,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = { pass: '通过', block: '阻塞', 
 export function renderGapHtml(report: GapReport): string {
   const rows = report.checks
     .map(
-      (c) => `<tr data-status="${c.status}"><td>${esc(c.check)}</td><td>${STATUS_LABEL[c.status] ?? c.status}</td><td>${c.findings.map(esc).join('<br/>') || '—'}</td></tr>`,
+      (c) => `<tr data-status="${c.status}"><td>${esc(c.check)}${c.source ? `<br/><small>${esc(c.source)}</small>` : ''}</td><td>${STATUS_LABEL[c.status] ?? c.status}</td><td>${c.findings.map(esc).join('<br/>') || '—'}</td></tr>`,
     )
     .join('\n');
   return `<!doctype html>

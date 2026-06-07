@@ -1,5 +1,6 @@
 import type { GapCheck, GapConfig } from '../config/schema.js';
 import type { DesignFlowSpec } from '../design-flow/index.js';
+import { formatImpeccableFinding, hasBlockingDetectorFinding, type ImpeccableDetectResult } from '../impeccable/index.js';
 import type { PageSnapshot } from './snapshot.js';
 
 export type CheckStatus = 'pass' | 'block' | 'advisory' | 'not-run';
@@ -8,6 +9,7 @@ export interface CheckResult {
   check: GapCheck;
   status: CheckStatus;
   findings: string[];
+  source?: string;
 }
 
 function rgbOf(c: string): [number, number, number] | null {
@@ -48,7 +50,7 @@ function severityFor(check: GapCheck, gap: GapConfig): CheckStatus {
  * MVP 真正会跑的：token / dom / detector / a11y。state / interaction 诚实标 not-run
  * （需要状态驱动 / 交互驱动，MVP 未实现）。
  */
-export function analyzeSnapshot(snapshot: PageSnapshot, spec: DesignFlowSpec, palette: string[] | null, gap: GapConfig): CheckResult[] {
+export function analyzeSnapshot(snapshot: PageSnapshot, spec: DesignFlowSpec, palette: string[] | null, gap: GapConfig, detector: ImpeccableDetectResult): CheckResult[] {
   const results: CheckResult[] = [];
 
   // token：有色且不在调色板里的颜色才算漂移
@@ -82,11 +84,15 @@ export function analyzeSnapshot(snapshot: PageSnapshot, spec: DesignFlowSpec, pa
     results.push({ check: 'dom', status: 'pass', findings: [] });
   }
 
-  // detector：实现页面的明显 slop
-  const det: string[] = [];
-  if (/lorem ipsum/i.test(snapshot.domHtml)) det.push('出现 lorem ipsum 占位文案。');
-  if (/>\s*click here\s*</i.test(snapshot.domHtml)) det.push('出现「Click here」泛化文案。');
-  results.push(det.length ? { check: 'detector', status: severityFor('detector', gap), findings: det } : { check: 'detector', status: 'pass', findings: [] });
+  // detector：只能来自 Impeccable detect，不再保留 ADW 薄版规则。
+  if (!detector.ok) {
+    results.push({ check: 'detector', status: severityFor('detector', gap), findings: [`Impeccable detect 未完成：${detector.message}`], source: 'impeccable-detect' });
+  } else if (detector.findings.length === 0) {
+    results.push({ check: 'detector', status: 'pass', findings: [], source: 'impeccable-detect' });
+  } else {
+    const status = hasBlockingDetectorFinding(detector.findings) ? severityFor('detector', gap) : 'advisory';
+    results.push({ check: 'detector', status, findings: detector.findings.map(formatImpeccableFinding), source: 'impeccable-detect' });
+  }
 
   // a11y：实现页面 a11y 在 MVP 是提醒（与设计稿 a11y 阻塞相对）
   const a11y: string[] = [];

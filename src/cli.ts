@@ -299,7 +299,7 @@ async function gapRun(targetDir: string, slug: string | undefined, url: string |
   const storageStatePath = sIdx >= 0 ? flags[sIdx + 1] : undefined;
   const { report, attached } = await runGapLoop(targetDir, config, slug, { url, storageStatePath });
   console.log(`采集：${report.captureStatus}　阻塞 ${report.blockingCount} / 提醒 ${report.warningCount}${attached ? '（已 attach ledger）' : '（未 attach）'}`);
-  for (const c of report.checks) console.log(`  ${c.check}: ${c.status}${c.findings.length ? ` — ${c.findings.join('；')}` : ''}`);
+  for (const c of report.checks) console.log(`  ${c.check}${c.source ? `(${c.source})` : ''}: ${c.status}${c.findings.length ? ` — ${c.findings.join('；')}` : ''}`);
   if (report.note) console.log(`note：${report.note}`);
   if (report.captureStatus === 'failed') return 1;
   return report.blockingCount > 0 ? 1 : 0;

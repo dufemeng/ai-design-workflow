@@ -4,6 +4,7 @@ import type { AdwConfig } from '../config/schema.js';
 import { assembleCodeContext } from '../code/index.js';
 import { parseDesignMd } from '../design/index.js';
 import { FlowLedgerStore } from '../flow/index.js';
+import { runImpeccableDetect } from '../impeccable/index.js';
 import { analyzeSnapshot, countSeverities } from './analyze.js';
 import { capturePage, GapCaptureError } from './capture.js';
 import { type GapReport, GapReportSchema, writeGapReport } from './report.js';
@@ -37,7 +38,8 @@ export async function runGapLoop(targetDir: string, config: AdwConfig, slug: str
       storageStatePath: opts.storageStatePath,
       screenshotPath: join(targetDir, screenshotRel),
     });
-    const checks = analyzeSnapshot(snapshot, ctx.spec, palette, config.gap);
+    const detector = runImpeccableDetect(opts.url, { cwd: targetDir });
+    const checks = analyzeSnapshot(snapshot, ctx.spec, palette, config.gap, detector);
     const counts = countSeverities(checks);
     report = GapReportSchema.parse({
       schemaVersion: 1,
