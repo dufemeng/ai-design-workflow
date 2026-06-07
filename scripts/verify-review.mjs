@@ -33,8 +33,9 @@ assert.ok(blocks(goodHtml, DesignFlowSpecSchema.parse({ ...raw, states: [] })).i
 assert.ok(blocks('<html><title>t</title><body></body></html>', spec).includes('a11y'));
 // tap target < 44
 assert.ok(blocks(goodHtml, DesignFlowSpecSchema.parse({ ...raw, h5Constraints: { tapTargetMinPx: 30 } })).includes('tap-target'));
-// detector slop
-assert.ok(blocks(goodHtml.replace('</main>', 'Lorem Ipsum</main>'), spec).includes('detector'));
+// detector 已移出 deterministic rules（改由 impeccable detect adapter 提供）：
+// 确定性层不再因 Lorem Ipsum 等 slop 阻塞。detector 来源见 gate.ts + verify-gap 的 detector 桩。
+assert.ok(!blocks(goodHtml.replace('</main>', 'Lorem Ipsum</main>'), spec).includes('detector'));
 // token 漂移只提醒不阻塞
 assert.ok(!blocks(goodHtml, spec, ['#faff69']).includes('token-drift'));
 assert.ok(runDeterministicRules(goodHtml, spec, ['#faff69']).some((d) => d.rule === 'token-drift' && d.severity === 'advisory'));

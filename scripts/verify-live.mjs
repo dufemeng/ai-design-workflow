@@ -60,6 +60,6 @@ assert.equal(wb.problemCount, 2, 'toLive(state) + advisory(a11y) = 2');
 assert.ok(existsSync(wb.path));
 const html = readFileSync(wb.path, 'utf8');
 assert.ok(html.includes('未覆盖 error 状态') && html.includes('缺 lang'), '问题应列在 workbench');
-assert.ok(html.includes('Impeccable live'), '应提示真正改页面复用 Impeccable live');
+assert.ok(html.includes('Impeccable /live'), '应提示真正改页面由 agent 执行 Impeccable /live');
 
 console.log('LIVE T12 VERIFY: ALL PASS  metrics + gate + workbench');

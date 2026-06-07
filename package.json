@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && for f in scripts/verify-*.mjs; do echo \"== $f ==\"; node \"$f\" || exit 1; done",
     "adw": "node dist/cli.js"
   },
   "dependencies": {
