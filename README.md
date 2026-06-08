@@ -7,6 +7,35 @@
 
 三个工作台：Proposal / Prototype → Design → Code，把一句话需求带到可评审设计产物、代码实现、gap 验证和人工 live 修复。
 
+## 最快使用：复制给 Claude Code / Codex
+
+在目标项目里打开 Claude Code 或 Codex，然后把下面整段话复制进去：
+
+```text
+请在当前仓库启用 ADW，并用它推进我的设计到代码工作流。
+
+先运行：
+npx -y github:dufemeng/ai-design-workflow init --target . --harness both --update
+
+安装完成后使用 adw-workflow。每一步先读 flow 状态，再按 Proposal / Prototype → Design → Code 推进。不要手改 docs/design-<flow>.workflow.json，不要静默修改根 DESIGN.md。
+
+如果当前环境找不到 adw 命令，就用：
+npx -y github:dufemeng/ai-design-workflow <command>
+
+来代替所有：
+adw <command>
+
+我的需求是：「把这里替换成一句话需求」
+flow slug 使用：my-flow
+```
+
+这段会把 ADW workflow 安装到当前目标仓库：
+
+- Claude Code：`.claude/skills/adw-workflow/SKILL.md`
+- Codex：`AGENTS.md` 中的 ADW 区块
+
+之后 agent 会用 ADW CLI 记录 flow 状态、生成 HTML 原型 / 正式设计稿、运行 gap report，并在需要 Impeccable `/document`、`/critique`、`/live` 时走 handoff/import。
+
 ## Impeccable 的两类能力（硬边界，别混淆）
 
 [Impeccable](https://github.com/pbakaus/impeccable) 不重造，但按能否脚本化分两层：

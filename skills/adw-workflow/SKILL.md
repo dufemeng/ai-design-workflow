@@ -11,6 +11,7 @@ Use this skill when a user wants to turn a one-line requirement, screenshot, HTM
 ## Hard Rules
 
 - Never edit `docs/design-<flow>.workflow.json` by hand. Use `adw` commands only.
+- If `adw` is not available on PATH, run the same command as `npx -y github:dufemeng/ai-design-workflow <command> ...`.
 - Never silently change root `DESIGN.md`. Use `design:bootstrap` / `design:confirm`, `designmd:*`, or `import:document` followed by explicit confirmation.
 - Do not claim ADW CLI runs Impeccable `/document`, `/critique`, `/polish`, `/audit`, or `/live`. Those are agent skills. ADW only creates handoff context and imports results.
 - Detector findings must come from `impeccable detect --json` through ADW.

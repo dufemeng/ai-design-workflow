@@ -36,6 +36,30 @@ function configCheck(targetDir: string): number {
   }
 }
 
+function initWorkflow(args: string[]): number {
+  const flag = (name: string): string | undefined => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const positionalTarget = args.find((a, i) => !a.startsWith('--') && (i === 0 || !args[i - 1]?.startsWith('--')));
+  const targetDir = flag('--target') ?? positionalTarget ?? process.cwd();
+  const harness = SkillHarnessSchema.parse(flag('--harness') ?? 'both');
+  const update = args.includes('--update') || args.includes('--yes');
+
+  const configResult = loadConfig(targetDir);
+  const install = installAdwSkill(targetDir, { harness, update });
+
+  console.log(`ADW 已启用：${targetDir}`);
+  console.log(`配置来源：${configResult.source}${configResult.configPath ? ` (${configResult.configPath})` : ''}`);
+  for (const note of configResult.notes) console.log(`提示：${note}`);
+  for (const item of install.installed) console.log(`已安装：${item}`);
+  for (const item of install.skipped) console.log(`跳过：${item}`);
+  console.log('');
+  console.log('下一步给 Claude Code / Codex 的提示：');
+  console.log('请使用 adw-workflow。先运行 `adw flow:status <target> <slug>`；如果当前环境没有 `adw`，用 `npx -y github:dufemeng/ai-design-workflow <command>` 代替所有 `adw <command>`。');
+  return 0;
+}
+
 function flowStatus(targetDir: string, slug: string | undefined): number {
   if (!slug) {
     console.error('用法：adw flow:status <目标项目目录> <flow-slug>');
@@ -593,6 +617,8 @@ async function main(argv: string[]): Promise<number> {
         return autofixPlan(argv[1] ?? process.cwd(), argv[2]);
       case 'skill:install':
         return skillInstall(argv[1] ?? process.cwd(), argv.slice(2));
+      case 'init':
+        return initWorkflow(argv.slice(1));
       case 'code:context':
         return codeContext(argv[1] ?? process.cwd(), argv[2]);
       case 'code:target':
@@ -634,11 +660,11 @@ async function main(argv: string[]): Promise<number> {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:create|flow:status|flow:done|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|handoff:*|import:*|skill:install|code:*|gap:run|gap:autofix-plan|live:*> ...');
+        console.error('用法：adw <init|config:check|flow:create|flow:status|flow:done|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|handoff:*|import:*|skill:install|code:*|gap:run|gap:autofix-plan|live:*> ...');
         return 2;
     }
   } catch (err) {
-    if (err instanceof RegistryError || err instanceof LedgerError || err instanceof CodeContextError || err instanceof HandoffError || err instanceof SkillInstallError) {
+    if (err instanceof ConfigError || err instanceof RegistryError || err instanceof LedgerError || err instanceof CodeContextError || err instanceof HandoffError || err instanceof SkillInstallError) {
       console.error(`错误：${err.message}`);
       console.error(`怎么修：${err.hint}`);
       return 1;

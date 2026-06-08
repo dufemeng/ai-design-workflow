@@ -67,6 +67,11 @@ assert.equal(existsSync(join(target, 'DESIGN.md')), false, 'import:document 不�
 const installOut = run('skill:install', target, '--harness', 'both');
 assert.ok(installOut.includes('adw-workflow'), installOut);
 assert.ok(existsSync(join(target, '.claude', 'skills', 'adw-workflow', 'SKILL.md')));
+assert.ok(readFileSync(join(target, '.claude', 'skills', 'adw-workflow', 'SKILL.md'), 'utf8').includes('npx -y github:dufemeng/ai-design-workflow'));
 assert.ok(readFileSync(join(target, 'AGENTS.md'), 'utf8').includes('BEGIN ADW WORKFLOW SKILL'));
 
-console.log('CLI HANDOFF/SKILL VERIFY: ALL PASS  handoff:document + import:document + skill:install');
+const initOut = run('init', '--target', target, '--harness', 'both', '--update');
+assert.ok(initOut.includes('ADW 已启用'), initOut);
+assert.ok(initOut.includes('npx -y github:dufemeng/ai-design-workflow <command>'), initOut);
+
+console.log('CLI HANDOFF/SKILL VERIFY: ALL PASS  handoff:document + import:document + skill:install + init');

@@ -5,6 +5,7 @@ Use ADW as an agent-controlled design workflow substrate.
 Rules:
 
 - Do not edit `docs/design-<flow>.workflow.json` directly. Use `adw` commands.
+- If `adw` is not available on PATH, run the same command as `npx -y github:dufemeng/ai-design-workflow <command> ...`.
 - Start resumed work with `adw flow:status <target> <slug>`.
 - Do not silently change root `DESIGN.md`; imports and deltas require explicit confirmation.
 - Impeccable `/document`, `/critique`, `/polish`, `/audit`, and `/live` are agent skills, not ADW CLI commands.
