@@ -44,6 +44,7 @@ Existing page fix:
 ## Design
 
 - Generate formal artifacts with `adw design:flow-generate <target> <slug> <spec.json>`.
+- The design spec must include machine-readable states. Each state or interaction needs either a runtime `driver` or an explicit `notTestableReason`; otherwise ADW writes artifacts but does not attach them to the flow ledger.
 - If Impeccable `/document` is needed, run `adw handoff:document <target> <slug>`, execute `/document` in the agent harness, then import the result with `adw import:document <target> <slug> <result.json>`.
 - If Impeccable `/critique` is needed, run `adw handoff:critique <target> <slug>`, execute `/critique`, then import with `adw import:critique <target> <slug> <result.json>`.
 - Run `adw design:review <target> <slug> [judgment.json]`.
@@ -53,7 +54,7 @@ Existing page fix:
 
 - Set implementation target with `adw code:target <target> <slug> <route-or-url> [--no-auth]`.
 - Run `adw gap:run <target> <slug> <url> [--storage state.json]`.
-- Current gap checks are implementation health, DESIGN.md token drift, and Impeccable detect. State/interaction driver and design-baseline diff are separate future tasks.
+- Current gap checks include implementation health, DESIGN.md token drift, Impeccable detect, state/interaction runtime drivers, and `design-<flow>.html` semantic baseline diff. Visual/pixel diff is still evidence-only future enhancement.
 - Use `adw gap:autofix-plan <target> <slug>` before deterministic auto-fix.
 - Record manual or live changes with `adw live:record <target> <slug> <purpose> [flags]`.
 - Finish with `adw flow:done <target> <slug> [--accept-warnings]`.
@@ -66,7 +67,7 @@ Existing page fix:
 {
   "source": "agent-skill",
   "skill": "document",
-  "agentHarness": "codex",
+  "agentHarness": "claude-code",
   "inputRefs": [],
   "outputRefs": [],
   "designVersion": null,
@@ -83,7 +84,7 @@ Existing page fix:
 {
   "source": "agent-skill",
   "skill": "critique",
-  "agentHarness": "codex",
+  "agentHarness": "claude-code",
   "inputRefs": [],
   "outputRefs": [],
   "designVersion": "sha256:...",
