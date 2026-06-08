@@ -12,6 +12,8 @@ import { assembleCodeContext, CodeContextError } from './code/index.js';
 import { GapReportSchema, runGapLoop } from './gap/index.js';
 import { AUTOFIX_CONTRACT, splitFindings } from './autofix/index.js';
 import { generateLiveWorkbench, liveMetrics, LiveError } from './live/index.js';
+import { createSkillHandoff, HandoffError, importSkillResult } from './handoff/index.js';
+import { installAdwSkill, SkillHarnessSchema, SkillInstallError } from './skill/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -432,6 +434,72 @@ function designmdConfirmDelta(targetDir: string, id: string | undefined): number
   }
 }
 
+function handoffSkill(targetDir: string, slug: string | undefined, skill: string): number {
+  if (!slug) {
+    console.error(`用法：adw handoff:${skill} <目标项目目录> <flow-slug>`);
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  try {
+    const { context, contextPath } = createSkillHandoff(targetDir, config, slug, skill);
+    console.log(`已生成 /${context.skill} handoff context：${contextPath}`);
+    console.log(`当前阶段：${context.stage}　gate：${context.gate ?? '—'}　DESIGN.md@${context.designVersion ?? '—'}`);
+    console.log('下一步：在 agent harness 中执行对应 Impeccable skill，然后用 import:<skill> 导入 result.json。');
+    return 0;
+  } catch (err) {
+    if (err instanceof HandoffError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+function importSkill(targetDir: string, slug: string | undefined, skill: string, resultPath: string | undefined): number {
+  if (!slug || !resultPath) {
+    console.error(`用法：adw import:${skill} <目标项目目录> <flow-slug> <result.json>`);
+    return 2;
+  }
+  const { config } = loadConfig(targetDir);
+  try {
+    const r = importSkillResult(targetDir, config, slug, resultPath);
+    console.log(r.message);
+    for (const ref of r.writtenRefs) console.log(`写入：${ref}`);
+    return 0;
+  } catch (err) {
+    if (err instanceof HandoffError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
+function skillInstall(targetDir: string, flags: string[]): number {
+  const flag = (name: string): string | undefined => {
+    const i = flags.indexOf(name);
+    return i >= 0 ? flags[i + 1] : undefined;
+  };
+  const harness = SkillHarnessSchema.parse(flag('--harness') ?? 'both');
+  const update = flags.includes('--update');
+  try {
+    const r = installAdwSkill(targetDir, { harness, update });
+    for (const item of r.installed) console.log(`已安装：${item}`);
+    for (const item of r.skipped) console.log(`跳过：${item}`);
+    if (r.installed.length === 0 && r.skipped.length === 0) console.log('没有需要安装的 skill 文件。');
+    return 0;
+  } catch (err) {
+    if (err instanceof SkillInstallError) {
+      console.error(`错误：${err.message}`);
+      console.error(`怎么修：${err.hint}`);
+      return 1;
+    }
+    throw err;
+  }
+}
+
 function liveWorkbench(targetDir: string, slug: string | undefined): number {
   if (!slug) {
     console.error('用法：adw live:workbench <目标项目目录> <flow-slug>');
@@ -504,6 +572,13 @@ async function main(argv: string[]): Promise<number> {
   const command = argv[0];
 
   try {
+    if (command?.startsWith('handoff:')) {
+      return handoffSkill(argv[1] ?? process.cwd(), argv[2], command.slice('handoff:'.length));
+    }
+    if (command?.startsWith('import:')) {
+      return importSkill(argv[1] ?? process.cwd(), argv[2], command.slice('import:'.length), argv[3]);
+    }
+
     switch (command) {
       case 'designmd:propose-delta':
         return designmdProposeDelta(argv[1] ?? process.cwd(), argv[2]);
@@ -517,6 +592,8 @@ async function main(argv: string[]): Promise<number> {
         return liveMetricsCmd(argv[1] ?? process.cwd(), argv[2]);
       case 'gap:autofix-plan':
         return autofixPlan(argv[1] ?? process.cwd(), argv[2]);
+      case 'skill:install':
+        return skillInstall(argv[1] ?? process.cwd(), argv.slice(2));
       case 'code:context':
         return codeContext(argv[1] ?? process.cwd(), argv[2]);
       case 'code:target':
@@ -558,11 +635,11 @@ async function main(argv: string[]): Promise<number> {
       case 'retrospect':
         return retrospectCmd(argv[1] ?? process.cwd());
       default:
-        console.error('用法：adw <config:check|flow:create|flow:status|flow:done|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|code:*|gap:run|gap:autofix-plan|live:*> ...');
+        console.error('用法：adw <config:check|flow:create|flow:status|flow:done|scan|retrospect|templates:*|proposal:*|design:bootstrap|design:confirm|design:flow-generate|design:review|designmd:propose-delta|designmd:confirm-delta|handoff:*|import:*|skill:install|code:*|gap:run|gap:autofix-plan|live:*> ...');
         return 2;
     }
   } catch (err) {
-    if (err instanceof RegistryError || err instanceof LedgerError || err instanceof CodeContextError) {
+    if (err instanceof RegistryError || err instanceof LedgerError || err instanceof CodeContextError || err instanceof HandoffError || err instanceof SkillInstallError) {
       console.error(`错误：${err.message}`);
       console.error(`怎么修：${err.hint}`);
       return 1;

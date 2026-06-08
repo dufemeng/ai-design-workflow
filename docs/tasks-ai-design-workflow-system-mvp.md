@@ -50,7 +50,7 @@ ADW CLI substrate
 - 未实现运行期 state / interaction driver；空、加载、错误、边界数据等状态目前只能在设计门静态把关，gap 运行期诚实标 `not-run`。
 - **flow 生命周期命令曾缺失，闭环一度是断的（命门级硬伤，已修）。** `createFlow`、`recordQuestionAnswer`、`approveDesign`、`markDone` 四个 FlowAction 当初有定义和 invariant，却没有任何 CLI 命令能触发：`store.create()` 全程零调用，`approveDesign` 只出现在注释和 resume 提示里。后果是 CLI 创建不了 flow、`design:review` 通过后进不了 code 阶段（Code 工作台 T9-T13 经 CLI 不可达）、到不了 `done` 终态、记录不了探索问答。**T16 已接线四个命令**（`flow:create` / `proposal:answer` / `design:approve` / `flow:done`），闭环现可经 CLI 跑通。早期「T0-T13 闭环已验证」的说法当时是 overclaim，现已名副其实。
 - **gap 名实不符：当前不和设计稿 baseline 做 diff。** 文档把 gap 定义为「设计产物和代码实现之间的差异」，但 `analyzeSnapshot` 从不加载 `design-<flow>.html`；`dom` 检查只是「页面非空白 + 有 title/h1」的体检，`token` 比的是全局 `DESIGN.md` 调色板而非设计稿。真正的「实现页 vs 设计稿」语义/DOM diff 尚未实现（见 T18）。
-- **B 主流程缺编排入口。** 「Agent 主控」目前只有散文描述，没有一个具体的 agent skill / workflow 入口告诉 Claude Code / Codex 怎么按 Proposal → Design → Code 调 `adw` 命令。这是「B + A」里 B 的落点，必须补成具体任务（见 T17）。
+- **B 主流程缺编排入口（已修）。** 「Agent 主控」曾只有散文描述，没有一个具体的 agent skill / workflow 入口告诉 Claude Code / Codex 怎么按 Proposal → Design → Code 调 `adw` 命令。T17 已补可安装 skill 与 `skill:install`。
 
 ## 2. MVP 默认决策
 
@@ -445,14 +445,14 @@ Design Workflow Orchestrator
 - 生成或修改代码。
 - 启动页面并用浏览器自检。
 - 目标 route / URL 来自 `docs/design-<flow>.md`。
-- 读取 `docs/design-<flow>.md` 中声明的状态驱动方式，并在进入 gap loop 前确认哪些状态可测。
+- 读取 `docs/design-<flow>.md` 中声明的目标 route、状态清单和验收规则。运行期状态驱动方式、可测性判断和 `not-testable` 回写由 T15 引入。
 
 验收：
 
 - 实现 agent 不直接改根 `DESIGN.md`。
 - 如果实现发现设计产物矛盾，回到 Design 修订。
 - gap 检查默认复用已登录浏览器会话；不把登录流程作为本地 gap loop 责任。
-- 无法驱动的状态必须回写为 `not-testable` 或回到 Design 补驱动方式，不能静默跳过。
+- 在 T15 完成前，运行期 state / interaction 必须诚实标 `not-run`；T15 完成后，无法驱动的状态才回写为 `not-testable` 或回到 Design 补驱动方式。
 
 ### T10：最小 gap engine —— 实现页健康 + token/detect 闸门 `[Stage 1 | depends: T1,T7,T9]`
 
@@ -567,9 +567,9 @@ Design Workflow Orchestrator
 本任务拆成两半，状态不同，分别验收：
 
 - **T14a　Detect Adapter + 删除自写 detector　`✅ 已实现`**：`src/impeccable` detect adapter 已落地，`design:review`（`gate.ts`）与 `gap:run`（`engine.ts`）已调用，结果带 `source: impeccable-detect`；ADW 自写 detector 主路径已删除。
-- **T14b　Skill Handoff / Import 边界　`⬜ 待做`**：`handoff:<skill>` / `import:<skill>` 命令、handoff context 文件格式、import result schema 尚未实现，仍为规格。
+- **T14b　Skill Handoff / Import 边界　`✅ 已实现（document / critique MVP，其他 skill 通用骨架）`**：`handoff:<skill>` / `import:<skill>` 命令、handoff context 文件格式、`document` / `critique` import schema 已落地；`polish` / `audit` / `live` 先走通用 provenance 记录，专用 schema 后补。
 
-交付（T14a 已完成 / T14b 待做）：
+交付（T14a / T14b 已完成）：
 
 - （T14a，已完成）新增 `Impeccable Detect Adapter`：
   - 直接调用 `impeccable detect --json <file|dir|url>`。
@@ -580,7 +580,7 @@ Design Workflow Orchestrator
   - `design:review` 的 detector finding 只能来自 Impeccable detect。
   - `gap:run` 的 detector check 只能来自 Impeccable detect。
   - 如果 detector 被配置为 blocking，而 detect 不可用，则必须阻塞或显式报告 detector 未运行，不能算通过。
-- （T14b，待做）建立 Agent Skill Handoff / Import 边界：
+- （T14b，已完成）建立 Agent Skill Handoff / Import 边界：
   - `/document`、`/critique`、`/polish`、`/audit`、`/live` 不由 ADW CLI spawn。
   - ADW 生成 handoff context：flow、DESIGN.md hash、design-<flow>.md/html、目标 route、当前 gate、期望输出 schema。
   - agent 在 Claude Code / Codex 中执行对应 Impeccable skill。
@@ -601,13 +601,13 @@ Design Workflow Orchestrator
   **`import:document`**（agent 跑完 `/document` 的产物）
   - 必填字段：`designMdContent`（string，完整 DESIGN.md 正文）、`sidecar`（object | null，`.impeccable/design.json` 内容）、`tokensSummary`（object：colors / typography 等，用于确认页与 delta 比对）。
   - 校验：**新增 `validateDesignMdForImport`**，不能只调 `parseDesignMd`（它是宽松解析：YAML 出错就吞成空、正文只抽标题，不会拒绝六节缺失或 frontmatter 不全）。validator 必须显式检查 frontmatter 必需 token（name/colors/typography 等）+ 正文六节齐全，缺失即拒绝。
-  - 写回：**不直接覆盖根 `DESIGN.md`**。走现有 delta gate —— 落 draft + 渲染确认页，经 `designmd:confirm-delta` 显式确认后才写，并记 `designVersion`。
+  - 写回：**不直接覆盖根 `DESIGN.md`**。写入 `DESIGN.md.draft` + `docs/design-system-confirmation.html`，经 `design:confirm` 显式确认后才写根 `DESIGN.md` 并生成 `designVersion`。注意：现有 `designmd:*` delta gate 只处理 token/rule 增量，不能承接整份 `/document` 导入。
 
   **`import:critique`**（agent 跑完 `/critique` 的产物）
   - 必填字段：`findings[]`，每条：`dimension ∈ {ia, main-path, product-thesis, copy, state}`、`severity ∈ {fatal, advisory}`、`message`、`evidence{screen?|element?|text?|interaction?}`。
   - 校验：复用 T8 证据门禁 —— `fatal` 但 `evidence` 全空的不计入阻塞（落 `fatalWithoutEvidence`）；schema 不合法整体拒绝。
   - 写回：合并进 `runReviewGate` 的 judgment 输入，写 `design-review.json` 与 `design-<flow>.md` 结论、回写 ledger `reviewStatus`，provenance 标 `source: agent-skill / skill: critique`（区别于 ADW 自带 deterministic + detector）。
-- `polish` / `audit` / `live` 复用同一命令骨架，schema 按优先级后补。
+- `polish` / `audit` / `live` 复用同一命令骨架，MVP 先校验通用 provenance 并落档；专用 schema 按优先级后补。
 - （T14a，已完成）清理错误 fallback 宣称：
   - `design:bootstrap` 保留 draft / 确认页 / delta gate，但不能宣称运行 `/document`。
   - `design:review` 保留 deterministic gate / evidence gate，但不能宣称运行 `/critique`。
@@ -679,7 +679,7 @@ Design Workflow Orchestrator
 - `design:approve` 在审查门未通过时被挡住。
 - §9 验收清单里依赖「可创建 / 可续跑 / 可收尾」的条目，只有本任务完成后才能勾选。
 
-### T17：ADW Agent 编排入口（skill / workflow） `[P0 | depends: T1,T16]`
+### T17：ADW Agent 编排入口（skill / workflow） `[P0 | ✅ 已实现 | depends: T1,T16]`
 
 背景：「Agent 主控」是 B 主流程的核心，但此前只有散文描述，没有具体入口。本任务把它落成可安装、可被 Claude Code / Codex 读取的编排 skill——这是「B + A」里 B 的落点。
 
@@ -695,10 +695,10 @@ Design Workflow Orchestrator
   - 如何把用户在 HTML workbench 里的口述决策翻译成 action 命令（static-decision-via-agent）。
   - 不变量：不手改 `workflow.json`、不后台改 `DESIGN.md`、detector 只来自 impeccable detect。
 
-交付（落到可实施粒度）：
+交付（已完成）：
 
-- **源文件**：随 ADW 包内置 `skills/adw-workflow/SKILL.md`（权威源）；可选 `skills/adw-workflow/AGENTS.snippet.md`（Codex 兼容片段，内容由 SKILL.md 派生，不另写一份逻辑）。
-- **安装命令**：`adw skill:install <目标项目目录> [--harness claude-code|codex|both]`
+- **源文件**：随 ADW 包内置 `skills/adw-workflow/SKILL.md`（权威源）和 `skills/adw-workflow/AGENTS.snippet.md`（Codex 兼容片段）。
+- **安装命令**：`adw skill:install <目标项目目录> [--harness claude-code|codex|both] [--update]`
   - claude-code：拷贝到 `<target>/.claude/skills/adw-workflow/SKILL.md`。
   - codex：把片段写入 / 合并进 `<target>/AGENTS.md` 的 ADW 区块（用显式 BEGIN/END 标记，可重复执行不重复追加）。
   - 路径来自 config，不硬编码本机绝对路径；已存在时提示覆盖 / 跳过。
@@ -762,7 +762,7 @@ Design Workflow Orchestrator
 
 目标：把 Stage 0 手动步骤固化成可重复命令或最小 UI。
 
-当前状态：T0-T13 实现了 ADW fallback MVP 的大部分模块——配置、Flow Ledger、模板、扫描、Proposal、Design、Review、Code Context、Gap、Autofix、Live Workbench、DESIGN.md delta gate。早期曾把闭环 overclaim 成「已验证」，实际四个生命周期命令缺 CLI 入口；**T16 已接线**，闭环现可经 CLI 端到端跑通。仍待做的是 T14b（handoff/import）、T15（state/interaction driver）、T17（agent 编排入口）、T18（设计稿 baseline diff），见下。
+当前状态：T0-T13 实现了 ADW fallback MVP 的大部分模块——配置、Flow Ledger、模板、扫描、Proposal、Design、Review、Code Context、Gap、Autofix、Live Workbench、DESIGN.md delta gate。早期曾把闭环 overclaim 成「已验证」，实际四个生命周期命令缺 CLI 入口；**T16 已接线**，闭环现可经 CLI 端到端跑通。T14b（handoff/import）与 T17（agent 编排入口）已落地。仍待做的是 T15（state/interaction driver）和 T18（设计稿 baseline diff），见下。
 
 新增：
 
@@ -861,12 +861,12 @@ MVP 验收必须满足：
 - [x] `impeccable detect --json` 被真实接入，而不是 ADW fallback detector（T14a）。
 - [x] ADW 自写 detector 主路径被删除（T14a）。
 - [x] `verify-*.mjs` 行为测试全绿，`npm test` 聚合可一键复验；含 `verify-cli-flow.mjs` 跑真实 CLI 的 `flow:create → … → flow:done` 端到端回归。
+- [x] `/document` 和 `/critique` 建立 handoff / import 协议（命令名 / 文件格式 / schema），而不是被写成 CLI 直接调用（T14b）。
+- [x] 有一个可安装的 agent 编排 skill（T17），命令逐条对得上 §5.3 契约表。
+- [x] `live:*` 明确是 workbench / PatchIntent / `/live` handoff，不宣称 CLI 已真实修改页面（文案已对齐；T14b 已提供通用 `/live` handoff/import 骨架）。
 
-尚未满足的 P0 验收：
+尚未满足的 P0 / Stage 2 验收：
 
-- [ ] `/document` 和 `/critique` 建立 handoff / import 协议（命令名 / 文件格式 / schema），而不是被写成 CLI 直接调用（T14b）。
-- [ ] 有一个可安装的 agent 编排 skill（T17），命令逐条对得上 §5.3 契约表。
-- [ ] `live:*` 明确是 workbench / PatchIntent / `/live` handoff，不宣称 CLI 已真实修改页面（文案已对齐，handoff/import 命令属 T14b）。
 - [ ] state / interaction runtime driver 能真实驱动和验证声明状态 / 交互（含 `ScreenStateSchema` 加 `driver` 字段）（T15）。
 - [ ] gap 能以 `design-<flow>.html` 为 baseline 做语义/DOM diff（T18），在此之前不叫「设计产物 diff」。
 

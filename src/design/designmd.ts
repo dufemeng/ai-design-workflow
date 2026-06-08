@@ -19,6 +19,12 @@ export interface ParsedDesignMd {
   isDraft: boolean;
 }
 
+export interface DesignMdValidationResult {
+  valid: boolean;
+  missing: string[];
+  parsed: ParsedDesignMd;
+}
+
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 
 export function parseDesignMd(content: string): ParsedDesignMd {
@@ -49,6 +55,28 @@ export function parseDesignMd(content: string): ParsedDesignMd {
   };
 }
 
+const REQUIRED_SECTIONS = ['Overview', 'Colors', 'Typography', 'Elevation', 'Components', "Do's and Don'ts"];
+
+/**
+ * Import gate for agent-generated DESIGN.md.
+ * parseDesignMd is intentionally forgiving for existing projects; imports need a strict gate.
+ */
+export function validateDesignMdForImport(content: string): DesignMdValidationResult {
+  const parsed = parseDesignMd(content);
+  const missing: string[] = [];
+  if (!content.match(FRONTMATTER_RE)) missing.push('frontmatter');
+  if (!parsed.tokens.name) missing.push('frontmatter.name');
+  if (Object.keys(parsed.tokens.colors).length === 0) missing.push('frontmatter.colors');
+  if (Object.keys(parsed.tokens.typography).length === 0) missing.push('frontmatter.typography');
+
+  const sections = new Set(parsed.bodySections.map((s) => normalizeSection(s)));
+  for (const section of REQUIRED_SECTIONS) {
+    if (!sections.has(normalizeSection(section))) missing.push(`section.${section}`);
+  }
+
+  return { valid: missing.length === 0, missing, parsed };
+}
+
 function extractStringMap(v: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (v && typeof v === 'object') {
@@ -57,6 +85,14 @@ function extractStringMap(v: unknown): Record<string, string> {
     }
   }
   return out;
+}
+
+function normalizeSection(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[’']/g, "'")
+    .replace(/^\d+\.\s*/, '')
+    .trim();
 }
 
 /** DESIGN.md 内容的版本指纹，写进 Flow Ledger 的 designVersion，用于审查门对齐设计语言版本。 */

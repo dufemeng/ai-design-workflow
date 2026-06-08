@@ -2,7 +2,7 @@
 
 **Agent 主控流程 + ADW CLI 确定性底座** 的「设计到代码」工作流套件。它不是一个独立跑完整条流程的产品，而是：
 
-- **B 主流程**：在 Claude Code / Codex 这类 AI harness 里，由 agent 主控需求澄清、HTML 原型、正式设计产物、代码实现、gap 验证和 live 修复（编排入口见 T17，进行中）。
+- **B 主流程**：在 Claude Code / Codex 这类 AI harness 里，由 agent 主控需求澄清、HTML 原型、正式设计产物、代码实现、gap 验证和 live 修复（编排入口见 T17，已提供 `skill:install`）。
 - **A 底座**：ADW CLI 提供确定性动作——Flow Ledger、artifact 读写、gap 验证、`impeccable detect` adapter、DESIGN.md delta gate、handoff/import——供 agent 安全调用、可复跑、可校验。
 
 三个工作台：Proposal / Prototype → Design → Code，把一句话需求带到可评审设计产物、代码实现、gap 验证和人工 live 修复。
@@ -50,8 +50,8 @@ Stage 1.5 P0 清债：
 
 - [x] T16 Flow 生命周期命令闭环（`flow:create` / `proposal:answer` / `design:approve` / `flow:done`，闭环现可经 CLI 端到端跑通）
 - [x] T14a Impeccable Detect Adapter + 删除自写 detector 主路径（`src/impeccable`）
-- [ ] T14b Skill Handoff / Import 协议（`handoff:<skill>` / `import:<skill>`，命令名/文件格式/schema 见 T14）
-- [ ] T17 ADW Agent 编排入口（可安装 skill：`skill:install`，Claude Code skill + AGENTS.md 兼容）
+- [x] T14b Skill Handoff / Import 协议（`handoff:<skill>` / `import:<skill>`，`document` / `critique` 专用 schema + 其他 skill 通用 provenance 骨架）
+- [x] T17 ADW Agent 编排入口（可安装 skill：`skill:install`，Claude Code skill + AGENTS.md 兼容）
 - [ ] T15 State / Interaction Driver（含给 `ScreenStateSchema` 加 `driver` 字段）
 
 Stage 2：
@@ -77,4 +77,5 @@ pnpm adw design:approve <dir> <slug>               # 审查门过后进入 Code
 pnpm adw code:target / gap:run / live:record
 pnpm adw flow:done <dir> <slug> [--accept-warnings]
 pnpm adw flow:status <dir> <slug>                  # 任意时刻看「在哪步/要决定什么/为什么卡住」
+pnpm adw skill:install <dir> --harness both         # 安装 ADW agent 编排入口
 ```
