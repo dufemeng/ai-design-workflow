@@ -26,8 +26,16 @@ function renderBody(spec: DesignFlowSpec): string {
   lines.push('## 屏幕与状态（机器可读，见 frontmatter）');
   for (const screen of spec.screens) {
     const states = spec.states.filter((st) => st.screenId === screen.id);
+    const interactions = spec.interactions.filter((it) => !it.screenId || it.screenId === screen.id);
     lines.push(`### ${screen.name}（\`${screen.id}\`）`, screen.description || '');
-    for (const st of states) lines.push(`- 状态 \`${st.kind}\`：${st.description || st.id}`);
+    for (const st of states) {
+      const driver = st.driver ? `driver=${st.driver.type}` : st.notTestableReason ? `not-testable=${st.notTestableReason}` : '未声明 driver';
+      lines.push(`- 状态 \`${st.kind}\`：${st.description || st.id}（${driver}）`);
+    }
+    for (const it of interactions) {
+      const driver = it.driver ? `${it.driver.steps.length} 步` : it.notTestableReason ? `not-testable=${it.notTestableReason}` : '未声明 driver';
+      lines.push(`- 交互 \`${it.id}\`：${it.description}（${driver}）`);
+    }
     lines.push('');
   }
   lines.push('## 目标 route', spec.targetRoute ? `\`${spec.targetRoute}\`` : '（未指定）', '');
@@ -42,16 +50,18 @@ export function renderDesignArtifactHtml(spec: DesignFlowSpec): string {
   const sections = spec.screens
     .map((screen) => {
       const states = spec.states.filter((st) => st.screenId === screen.id);
+      const interactions = spec.interactions.filter((it) => !it.screenId || it.screenId === screen.id);
       const acc = spec.acceptanceRules.filter((a) => a.screenId === screen.id);
       const preview = screen.mockHtml
-        ? `<div class="phone"><iframe title="${esc(screen.name)}" srcdoc="${esc(screen.mockHtml)}"></iframe></div>`
-        : '<div class="phone empty">（无 mock，结构占位）</div>';
+        ? `<div class="phone" data-design-chrome="phone-frame"><iframe title="${esc(screen.name)}" srcdoc="${esc(screen.mockHtml)}"></iframe></div>`
+        : '<div class="phone empty" data-design-chrome="phone-frame">（无 mock，结构占位）</div>';
       return `
     <section class="screen" data-screen="${esc(screen.id)}">
       <h2>${esc(screen.name)} <code>${esc(screen.id)}</code></h2>
       <p>${esc(screen.description)}</p>
       ${preview}
-      <div class="states">${states.map((st) => `<span class="state" data-kind="${esc(st.kind)}">${esc(st.kind)}：${esc(st.description || st.id)}</span>`).join('') || '<em>未声明状态</em>'}</div>
+      <div class="states">${states.map((st) => `<span class="state" data-kind="${esc(st.kind)}" data-driver="${esc(st.driver?.type ?? (st.notTestableReason ? 'not-testable' : 'missing'))}">${esc(st.kind)}：${esc(st.description || st.id)}</span>`).join('') || '<em>未声明状态</em>'}</div>
+      ${interactions.length ? `<ul class="interactions">${interactions.map((it) => `<li data-interaction="${esc(it.id)}" data-driver="${esc(it.driver ? 'driver' : it.notTestableReason ? 'not-testable' : 'missing')}">${esc(it.description)}</li>`).join('')}</ul>` : ''}
       ${acc.length ? `<ul class="acc">${acc.map((a) => `<li>${esc(a.rule)}</li>`).join('')}</ul>` : ''}
     </section>`;
     })
@@ -77,15 +87,16 @@ export function renderDesignArtifactHtml(spec: DesignFlowSpec): string {
   .states { display: flex; flex-wrap: wrap; gap: 6px; }
   .state { background: #eef2f5; border-radius: 5px; padding: 2px 8px; font-size: 12px; }
   .state[data-kind="error"] { background: #ffebe9; } .state[data-kind="empty"] { background: #fff8c5; }
-  .acc { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #57606a; }
+  .interactions,.acc { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #57606a; }
+  .interactions li[data-driver="missing"] { color: #9a6700; }
 </style>
 </head>
 <body>
-  <header class="top">
+  <header class="top" data-design-chrome="document-header">
     <h1>${esc(spec.title)}</h1>
-    <div class="meta">route：${esc(spec.targetRoute ?? '（未指定）')} · DESIGN.md@${esc(spec.designVersion)} · ${spec.screens.length} 屏 / ${spec.states.length} 状态 / ${spec.acceptanceRules.length} 验收</div>
+    <div class="meta">route：${esc(spec.targetRoute ?? '（未指定）')} · DESIGN.md@${esc(spec.designVersion)} · ${spec.screens.length} 屏 / ${spec.states.length} 状态 / ${spec.interactions.length} 交互 / ${spec.acceptanceRules.length} 验收</div>
   </header>
-  <main>${sections}</main>
+  <main data-design-surface="flow">${sections}</main>
 </body>
 </html>
 `;

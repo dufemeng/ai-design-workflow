@@ -265,13 +265,12 @@ function designFlowGenerate(targetDir: string, slug: string | undefined, specPat
   console.log(`已生成：${htmlPath}`);
 
   const readiness = readinessForCode(spec);
-  if (spec.states.length === 0) {
-    console.error('挡住了：没有机器可读状态清单，不能进入 Code；已写出产物供补全，但不 attach 到 ledger。');
+  if (!readiness.ready) {
+    console.error(`挡住了：进入 Code 前还缺 ${readiness.missing.join('、')}；已写出产物供补全，但不 attach 到 ledger。`);
     return 1;
   }
   const store = new FlowLedgerStore(targetDir, config.artifactDir);
   store.apply(slug, { type: 'attachDesignArtifact', designMd: mdRel, designHtml: htmlRel, designVersion: spec.designVersion });
-  if (!readiness.ready) console.log(`提醒：进入 Code 前还缺 ${readiness.missing.join('、')}。`);
   console.log('已 attach 设计稿到 ledger。');
   return 0;
 }

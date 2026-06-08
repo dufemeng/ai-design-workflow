@@ -1,7 +1,7 @@
 # AI Design Workflow System MVP 实施方案
 
 更新时间：2026-06-07  
-状态：P0 清债重构版；目标为 Agent 主控 + ADW 确定性底座（新增 T16 闭环命令 / T17 agent 入口 / T18 baseline diff）  
+状态：P0 清债重构版；目标为 Agent 主控 + ADW 确定性底座（T14-T18 已完成，剩余为真实项目降噪和增强）  
 关联设计：`docs/design-ai-design-workflow-system.md`
 
 ## 1. 实施结论
@@ -33,8 +33,8 @@ ADW CLI substrate
   -> docs/design-<flow>.md + docs/design-<flow>.html
   -> ADW fallback 设计稿审查门（需改为 ADW gate + skill import）
   -> 代码实现
-  -> token / DOM / 自写 detector 阻塞检查（需替换为 impeccable detect）
-  -> state / interaction not-run
+  -> token / DOM / impeccable detect 阻塞检查
+  -> state / interaction driver 或 not-testable
   -> a11y 提醒
   -> 自动修复确定性问题
   -> live workbench + PatchIntent
@@ -47,9 +47,9 @@ ADW CLI substrate
 - 自写 detector 是错误替代实现，必须从主路径删除并替换为 `impeccable detect --json`。
 - `design:bootstrap` 的扫描 seed 只能是 handoff context / draft，不得包装成完整 DESIGN.md 生成。
 - `design:review` 的 judgment input 只能是证据门禁和 import 校验，不得包装成 Impeccable critique。
-- 未实现运行期 state / interaction driver；空、加载、错误、边界数据等状态目前只能在设计门静态把关，gap 运行期诚实标 `not-run`。
+- 运行期 state / interaction driver 已实现（T15）：状态可声明 query-param、mock-response、fixture、feature-flag、test-hook 等驱动；交互可声明 click、input、expand-collapse、scroll、keyboard 等步骤。缺 driver 时不能静默通过，进入 Code 前会被 `readinessForCode` 挡住，或在 gap report 中标 `not-testable`。
 - **flow 生命周期命令曾缺失，闭环一度是断的（命门级硬伤，已修）。** `createFlow`、`recordQuestionAnswer`、`approveDesign`、`markDone` 四个 FlowAction 当初有定义和 invariant，却没有任何 CLI 命令能触发：`store.create()` 全程零调用，`approveDesign` 只出现在注释和 resume 提示里。后果是 CLI 创建不了 flow、`design:review` 通过后进不了 code 阶段（Code 工作台 T9-T13 经 CLI 不可达）、到不了 `done` 终态、记录不了探索问答。**T16 已接线四个命令**（`flow:create` / `proposal:answer` / `design:approve` / `flow:done`），闭环现可经 CLI 跑通。早期「T0-T13 闭环已验证」的说法当时是 overclaim，现已名副其实。
-- **gap 名实不符：当前不和设计稿 baseline 做 diff。** 文档把 gap 定义为「设计产物和代码实现之间的差异」，但 `analyzeSnapshot` 从不加载 `design-<flow>.html`；`dom` 检查只是「页面非空白 + 有 title/h1」的体检，`token` 比的是全局 `DESIGN.md` 调色板而非设计稿。真正的「实现页 vs 设计稿」语义/DOM diff 尚未实现（见 T18）。
+- **gap 名实不符已修复到语义层。** T18 已让 `gap:run` 加载 `design-<flow>.html`，优先从 iframe `srcdoc` 提取关键文本，剥离审阅 chrome 后与实现页 DOM 做语义 baseline diff。仍未做的是像素级 / masked screenshot 视觉 diff；截图继续作为证据，不作为默认阻塞标准。
 - **B 主流程缺编排入口（已修）。** 「Agent 主控」曾只有散文描述，没有一个具体的 agent skill / workflow 入口告诉 Claude Code / Codex 怎么按 Proposal → Design → Code 调 `adw` 命令。T17 已补可安装 skill 与 `skill:install`。
 
 ## 2. MVP 默认决策
@@ -62,13 +62,13 @@ ADW CLI substrate
 | live 修改 | 当前是 live workbench + PatchIntent；真实修改走 agent `/live` handoff | `/live` 是 skill，不是已证明可 spawn 的 CLI |
 | Flow 状态 | `docs/design-<flow>.workflow.json` | 把一条 flow 的状态和产物绑住 |
 | 需求级设计文档 | `docs/design-<flow>.md` | 需求权威记录，不污染根 `DESIGN.md` |
-| 正式 HTML 设计稿 | `docs/design-<flow>.html` | 用户审阅载体；设计稿 baseline diff 是 T18 目标，T10 当前不比对 |
+| 正式 HTML 设计稿 | `docs/design-<flow>.html` | 用户审阅载体；T18 已用作语义 baseline diff |
 | Proposal HTML | `docs/proposal-<flow>.html` | 方案发散和选择页 |
 | gap report | `docs/assets/<flow>/gap-report-<runId>.json/html` + latest 摘要 | 每轮独立保存，机器消费和用户审阅分离 |
 | `PRODUCT.md` | 短期保留根目录兼容文件 | 兼容 Impeccable；当前不代表已调用 Impeccable |
 | `DESIGN.md` 更新 | 只允许 delta proposal + 当前操作者确认 | 防止 agent 后台污染全局设计语言 |
 | MVP 运行期阻塞检查 | token / DOM / `impeccable detect --json` | detector 来源必须是真 Impeccable CLI |
-| MVP 运行期 not-run | state / interaction | 缺状态 / 交互驱动，不能假装已验证 |
+| MVP 运行期 state / interaction | 有 driver 则真实运行；缺 driver 则挡住或标 `not-testable` | 不能把未验证状态伪装成通过 |
 | MVP 提醒检查 | a11y | 先记录噪声，阶段 2 再升级稳定规则 |
 | screenshot | visual evidence | 不作为默认阻塞标准 |
 
@@ -222,7 +222,7 @@ Design Workflow Orchestrator
 | Proposal Engine | 苏格拉底探索、发散、收敛 | 会话状态 + 决策树 + HTML 候选页 |
 | Design Artifact Engine | 生成需求级设计文档和正式 HTML | `docs/design-<flow>.md/html` |
 | Review Gate Engine | 设计稿审查门 | ADW deterministic + `impeccable detect --json` + agent `/critique` import 证据门禁 |
-| Code Gap Engine | 设计稿和实现页面比对 | token/DOM/Impeccable detect 阻塞；state/interaction not-run；a11y 提醒 |
+| Code Gap Engine | 实现页面验证 + 设计稿 baseline 语义 diff | token/DOM health/Impeccable detect 阻塞；state/interaction driver 可运行；baseline 缺失文本可阻塞；a11y 提醒 |
 | Auto Fix Engine | 修复确定性问题 | 最多三轮，patch 可回滚 |
 | Live Repair Bridge | 人工局部修复 | live workbench + PatchIntent + agent `/live` handoff；可脚本化 live server 单独 spike |
 
@@ -240,7 +240,7 @@ Design Workflow Orchestrator
   - `productContextMode`，MVP 为 `product-md-compatible`。
   - `defaultViewports`，至少包含 H5 mobile。
   - `gap.blockingChecks`，当前默认 `token/dom/detector`。
-  - `gap.warningChecks`，当前默认 `interaction/a11y`；其中 interaction 在 driver 未实现前会输出 `not-run`。
+  - `gap.warningChecks`，当前默认 `interaction/a11y`；interaction 有 driver 时运行，缺 driver 时输出 `not-testable` / `not-run`。
   - `gap.maxAutoFixRounds`，默认 3。
   - `htmlWorkbenchMode`，MVP 默认为 `static-decision-via-agent`。
   - `flowSlugConflictPolicy`，默认 `prompt-or-append-suffix`。
@@ -387,20 +387,21 @@ Design Workflow Orchestrator
   - 信息架构和主路径。
   - 机器可读的屏幕清单。
   - 机器可读的状态清单：空、加载、错误、成功、边界数据。
-  - （驱动方式不在 T7 强制：当前 `ScreenStateSchema` 无 `driver` 字段，driver 的 schema 与运行时执行由 **T15** 引入。T7 可在正文里描述打算怎么驱动，但不作为 schema 字段或验收硬条件。）
+  - `states[].driver` / `states[].notTestableReason`：状态必须声明运行期驱动方式，或明确为什么不可测。
+  - `interactions[].driver` / `interactions[].notTestableReason`：关键交互必须声明可执行步骤，或明确为什么不可测。
   - 目标 route / URL。
   - H5 约束：safe-area、键盘、底部操作区、tap target。
   - 验收规则清单。
   - 引用的 `DESIGN.md` version 或 hash。
   - HTML 设计稿路径。
-- 生成 `docs/design-<flow>.html`，作为正式设计稿（用作 gap baseline 比对是 T18 目标，T10 当前不加载比对）。
+- 生成 `docs/design-<flow>.html`，作为正式设计稿和 T18 gap baseline。
 
 验收：
 
 - 需求级文档不复制根 `DESIGN.md` 的全部内容。
 - 如果设计稿偏离根 `DESIGN.md`，必须记录偏离理由。
 - 没有机器可读状态清单时，不能进入 Code。
-- （驱动方式相关验收移交 T15：在 T15 给 `ScreenStateSchema` 加 `driver` 字段前，T7 不因「缺 driver」打回；T15 落地后，没有 driver 的可检查状态才标 `not-testable`。）
+- 没有 driver 且没有 `notTestableReason` 的状态 / 交互不能进入 Code；`design:flow-generate` 会写出产物供补全，但不 attach 到 Flow Ledger。
 
 ### T8：设计稿审查门 `[Stage 1 | depends: T1,T7]`
 
@@ -445,18 +446,18 @@ Design Workflow Orchestrator
 - 生成或修改代码。
 - 启动页面并用浏览器自检。
 - 目标 route / URL 来自 `docs/design-<flow>.md`。
-- 读取 `docs/design-<flow>.md` 中声明的目标 route、状态清单和验收规则。运行期状态驱动方式、可测性判断和 `not-testable` 回写由 T15 引入。
+- 读取 `docs/design-<flow>.md` 中声明的目标 route、状态清单、交互清单、驱动方式和验收规则。
 
 验收：
 
 - 实现 agent 不直接改根 `DESIGN.md`。
 - 如果实现发现设计产物矛盾，回到 Design 修订。
 - gap 检查默认复用已登录浏览器会话；不把登录流程作为本地 gap loop 责任。
-- 在 T15 完成前，运行期 state / interaction 必须诚实标 `not-run`；T15 完成后，无法驱动的状态才回写为 `not-testable` 或回到 Design 补驱动方式。
+- state / interaction 有 driver 时由 gap loop 真实执行；没有 driver 且没有 `notTestableReason` 时应回到 Design 补契约，不能静默进入 Code。
 
 ### T10：最小 gap engine —— 实现页健康 + token/detect 闸门 `[Stage 1 | depends: T1,T7,T9]`
 
-> 命名口径：T10 当前能力是「**implementation health + token/detect gate**」——对实现页做健康体检、与 `DESIGN.md` token 比对、跑 detector。**它不是「设计稿 vs 实现」的 baseline diff**；真正以 `design-<flow>.html` 为 baseline 的语义/DOM/视觉 diff 全部归 **T18**。本节凡涉及 baseline 的输入/检查项都标注「(T18)」。
+> 命名口径：T10 是基础 gap engine：「implementation health + token/detect gate」。T18 已在此基础上追加 `design-<flow>.html` baseline 语义 diff；视觉 / masked screenshot diff 仍只作为后续证据增强。
 
 交付：
 
@@ -465,16 +466,20 @@ Design Workflow Orchestrator
   - implementation page URL。
   - `DESIGN.md` version 与调色板。
   - viewport 列表。
-- **不属于 T10、已移交的输入与准备**（写在这里只为说明边界，排期归对应任务）：
-  - Design HTML baseline、可比区域标记（`data-design-surface` / `data-design-chrome`）、surface↔landmark 对齐、缺标记时的降级策略 → **T18**（设计稿 baseline diff）。
-  - 状态驱动方式清单，以及 empty/loading/error/success/boundary 的运行时驱动与 `not-testable` 标记 → **T15**（state/interaction driver）。
+- T18 已接入的 baseline 输入：
+  - Design HTML baseline：`docs/design-<flow>.html`。
+  - 可比区域标记：`data-design-surface` / `data-design-chrome`；缺高置信 `srcdoc` 时降级为提醒，不强行高置信阻塞。
 - 阻塞检查（T10 当前能力）：
   - token / rule 比对：实现页 computed color vs `DESIGN.md` 调色板（不是 vs 设计稿）。
   - DOM 健康检查：页面非空白、有 `<title>`/`h1` 等基本结构（**非** 与设计稿的 semantic diff —— 那是 T18）。
   - detector：来源必须是 `impeccable detect --json`。
-- not-run：
-  - state coverage（直到 state driver 完成）。
-  - interaction diff（直到 interaction driver 完成）。
+- baseline diff 检查（T18 已接入）：
+  - 从设计稿 iframe `srcdoc` 提取 h/p/button/label/a/li 等关键文本。
+  - 与实现页 DOM 文本做存在性比对，缺失高置信关键文本时按 DOM 检查阻塞。
+  - 缺高置信 surface 时降级提醒，避免响应式和审阅 chrome 误杀。
+- runtime driver 检查：
+  - state：根据 `states[].driver` 把页面推进到 empty/loading/error/success/boundary 等状态；无法驱动则 `not-testable`。
+  - interaction：根据 `interactions[].driver.steps` 执行 click/input/expand-collapse/scroll/keyboard 等交互；无法驱动则 `not-testable`。
 - 提醒检查：
   - accessibility diff。
 - 证据：
@@ -489,19 +494,19 @@ Design Workflow Orchestrator
 实现口径：
 
 - （T10 当前）token 比对先 normalize 再比较：颜色统一成 RGBA，单位统一成 px，数值允许小数舍入，字体允许 fallback 族，line-height / letter-spacing / opacity 允许配置容差；容差写入 gap report。
-- （T18 口径，非 T10）设计稿 baseline 的 DOM diff 不做逐节点像素级或源码级对齐，只比较语义层：关键文本、role、主要区块、可交互元素、状态容器和验收选择器；chrome 剥离写入 report 以判断误杀来源。
+- 设计稿 baseline 的 DOM diff 不做逐节点像素级或源码级对齐，只比较语义层：关键文本、主要区块、可交互元素、状态容器和验收选择器；chrome 剥离写入 report 以判断误杀来源。
 
-> **当前实现差距（必须写实）：** 现版 `gap:run` **不加载 `design-<flow>.html` 做 baseline diff**。`dom` 检查只是「页面非空白 + 有 title/h1」的体检；`token` 比的是全局 `DESIGN.md` 调色板，不是设计稿。也就是说本节描述的「实现页 vs 设计稿」语义/DOM diff 仍是目标态，落地见 **T18**。在 T18 完成前，文档不得宣称 gap 已经在对齐设计稿。
+> **当前实现差距（必须写实）：** `gap:run` 已加载 `design-<flow>.html` 做语义 baseline diff，但还不是像素级自动还原，也未做完整 role tree / visual masked diff。当前可对外宣称的是「设计稿关键文本 / 语义 baseline vs 实现页 DOM」检查。
 
 验收：
 
 - gap report schema 通过后才能写入 Flow Ledger。
 - screenshot 不作为默认阻塞标准。
-- state / interaction 当前必须诚实输出 `not-run`，不能算通过。
+- state / interaction 有 driver 时必须真实执行；缺 driver 的状态 / 交互不能算通过，只能在设计准入被挡住或在 report 中标 `not-testable`。
 - a11y 在 MVP 只提醒，不自动挡住 flow。
 - 明显 token、dom 健康、detector 问题能阻塞。
 - 每轮 gap report 有独立 runId（`gap-report-<runId>.json/.html`），历史不被覆盖，另写 `gap-report-latest.*` 指针。（已实现，`verify-cli-flow` 断言四件套落盘。）
-- （T18 验收，非 T10）可比区域缺失时不强行做高置信 baseline DOM / token 阻塞判断。
+- 可比区域缺失时不强行做高置信 baseline DOM / token 阻塞判断。
 
 ### T11：自动修复 loop `[Stage 1 | depends: T1,T10]`
 
@@ -621,11 +626,23 @@ Design Workflow Orchestrator
 - `document` / `critique` / `polish` / `audit` / `live` 在文档、命令输出和代码注释中都不再写成 ADW CLI 可直接调用。
 - handoff context 和 import schema 至少覆盖 `/document` 与 `/critique`，后续再扩到 `/polish`、`/audit`、`/live`。
 
-### T15：State / Interaction Driver `[P0 | depends: T7,T9,T10]`
+### T15：State / Interaction Driver `[P0 | ✅ 已实现 | depends: T7,T9,T10]`
 
-交付：
+状态：✅ 已实现（`src/design-flow/spec.ts`、`src/gap/capture.ts`、`src/gap/runtime.ts`、`src/gap/analyze.ts`），并由 `scripts/verify-runtime-driver.mjs` 通过真实 Chromium 验证 query-param / test-hook 状态驱动和 click 交互驱动。
 
-- **先扩 spec schema（前置硬伤）。** 当前 `ScreenStateSchema` 只有 `{id, screenId, kind, description}`，**没有 `driver` 字段**，`readinessForCode` 也只校验 `states.length>0`。所以「每个状态的驱动方式」目前无处声明、无法校验——T15 必须先给 `ScreenStateSchema` 加 `driver`（类型 + 参数），并让 `readinessForCode` 要求每个状态要么有 driver、要么显式 `not-testable`。在此之前 T7 的「声明驱动方式」是写在文档里、schema 落不下的空头承诺。
+交付（已完成）：
+
+- `ScreenStateSchema` 已扩展：
+  - `driver`：`query-param`、`mock-response`、`fixture`、`feature-flag`、`seed-data`、`test-hook`。
+  - `expected`：可声明 `text`、`selector`、`urlIncludes` 作为低噪声断言。
+  - `notTestableReason`：明确不可测原因，不能和 `driver` 同时存在。
+- `InteractionSpecSchema` 已新增：
+  - `interactions[]`：`id`、`screenId`、`description`、`driver`、`notTestableReason`。
+  - `driver.steps`：`click`、`input`、`expand-collapse`、`scroll`、`keyboard`。
+- `readinessForCode` 已升级：
+  - 没有状态清单会阻塞。
+  - 状态 / 交互缺 `driver` 且缺 `notTestableReason` 会阻塞。
+  - `design:flow-generate` 会写出产物供补全，但不会 attach 到 Flow Ledger。
 - 为 `docs/design-<flow>.md` 中的状态驱动方式建立运行时执行协议：
   - mock response。
   - fixture。
@@ -647,12 +664,20 @@ Design Workflow Orchestrator
   - keyboard / safe-area 相关场景。
 - 对无法驱动的状态或交互输出 `not-testable`，并给出补驱动建议。
 
-验收：
+实现边界：
+
+- `query-param`、`feature-flag(query-param/local-storage)`、`mock-response`、`fixture(query-param/mock-response)`、`test-hook` 可以由 Playwright 执行。
+- `seed-data` 代表外部数据准备动作，ADW 不擅自执行，运行期会标 `not-testable` 并提示改成可执行 driver 或补外部准备。
+- state / interaction 的结果聚合进 gap report 的六类检查，不拆成新的顶层检查维度。
+- `not-testable` 不等于通过；全部不可测时状态为 `not-testable`，部分通过部分不可测时作为提醒，driver 失败按 `gap.blockingChecks` / `warningChecks` 配置聚合。
+
+验收（已完成）：
 
 - state 不再默认 `not-run`；有 driver 的状态必须真实采集并生成检查结果。
 - interaction 不再默认 `not-run`；有 driver 的交互必须真实执行并记录结果。
 - 没有 driver 的状态 / 交互不能静默通过。
 - driver 失败不导致整个 gap loop 崩溃，而是写入 failed / not-testable report。
+- `scripts/verify-runtime-driver.mjs` 验证：query-param 状态 pass、test-hook 状态 pass、显式不可测状态 `not-testable`、click 交互 pass。
 
 ### T16：Flow 生命周期命令闭环 `[P0 | ✅ 已实现 | depends: T1]`
 
@@ -718,22 +743,25 @@ Design Workflow Orchestrator
 - skill 不重述 Impeccable 能力，只做 handoff；不把 skill 写成「ADW CLI 直接调用 /critique」。
 - `skill:install` 可重复执行不产生重复块；支持 `--update` 覆盖旧版本。
 
-### T18：设计稿 baseline gap diff `[Stage 2 | depends: T7,T10]`
+### T18：设计稿 baseline gap diff `[Stage 2 | ✅ 已实现 | depends: T7,T10]`
 
-背景：当前 `gap:run` 不加载 `design-<flow>.html`，「实现页 vs 设计稿」的语义/DOM/视觉 diff 尚未实现。这是「设计系统」最该有、却名实不符的能力。
+状态：✅ 已实现（`src/gap/baseline.ts`、`src/gap/engine.ts`、`src/design-flow/serialize.ts`），并由 `scripts/verify-baseline-diff.mjs` 通过真实 `runGapLoop` 验证：实现页缺少设计稿关键文本时 baseline DOM 阻塞，补齐后通过。
 
-交付：
+背景：早期 `gap:run` 不加载 `design-<flow>.html`，「实现页 vs 设计稿」的语义/DOM/视觉 diff 尚未实现。这是「设计系统」最该有、却曾名实不符的能力。T18 先落地低噪声语义 baseline diff，不做任意页面像素级自动还原。
+
+交付（已完成）：
 
 - gap loop 加载 `design-<flow>.html` 作为 baseline，按 `data-design-surface` / `data-design-chrome` 剥离审阅 chrome 后比对实现页：
-  - 语义/文本 diff：关键文本、role、主要区块、可交互元素、状态容器、验收选择器是否缺失或漂移。
-  - 可选视觉 diff：masked screenshot 对比，作为证据不作默认阻塞。
-- 比对前先做可比区域对齐（设计稿 surface ↔ 实现页 main landmark / selector）；缺标记时降级为提醒或要求回 Design 补标记，不强行高置信阻塞。
+  - 语义/文本 diff：优先从 iframe `srcdoc` 提取 h/p/button/label/a/li 等关键文本，检查实现页是否缺失。
+  - `data-kind` / `data-interaction` 等标记进入 baseline evidence。
+  - 可选视觉 diff：仍是后续增强，masked screenshot 只作为证据不作默认阻塞。
+- 比对前先做可比区域对齐；缺高置信 `srcdoc` / surface 时降级为提醒或要求回 Design 补标记，不强行高置信阻塞。
 
-验收：
+验收（已完成）：
 
 - gap report 能指出「设计稿有、实现页缺」的关键元素 / 文本 / 状态容器，并标 baseline 来源。
 - 响应式合理差异不被误判为缺失（容差与 chrome 剥离写入 report）。
-- 在 T18 完成前，所有文档对 gap 的描述只能说「实现页 vs DESIGN.md token + detector + spec 存在性」，不得叫「设计产物 diff」。
+- `scripts/verify-baseline-diff.mjs` 覆盖一轮缺失阻塞和一轮补齐通过。
 
 ## 8. 阶段计划
 
@@ -746,7 +774,7 @@ Design Workflow Orchestrator
 1. 抽样读取已有 `DESIGN.md`、`PRODUCT.md`、`.impeccable/` 和多组 `docs/design-<flow>.md/html`。
 2. 检查需求级文档是否有机器可读状态清单、目标 route、验收规则。
 3. 用现有产物手工跑一次设计稿审查门。
-4. 对一个已有实现页跑最小 gap：token / DOM / detector 阻塞，state / interaction 标 `not-run`，a11y 提醒，截图做证据。
+4. 对一个已有实现页跑最小 gap：token / DOM / detector 阻塞；有 driver 的 state / interaction 真实运行，缺 driver 标 `not-testable`；a11y 提醒，截图做证据。
 5. 手工记录一个 Flow Ledger 样例。
 6. 如 Impeccable skill 可用，由 agent 手工执行 `/critique` / `/live` / `/polish` 完成一轮修复，并把结果导入 ADW；只跑 CLI 时必须标记为未执行 skill。
 7. 记录误判、噪声、修复耗时、产物缺口。
@@ -762,7 +790,7 @@ Design Workflow Orchestrator
 
 目标：把 Stage 0 手动步骤固化成可重复命令或最小 UI。
 
-当前状态：T0-T13 实现了 ADW fallback MVP 的大部分模块——配置、Flow Ledger、模板、扫描、Proposal、Design、Review、Code Context、Gap、Autofix、Live Workbench、DESIGN.md delta gate。早期曾把闭环 overclaim 成「已验证」，实际四个生命周期命令缺 CLI 入口；**T16 已接线**，闭环现可经 CLI 端到端跑通。T14b（handoff/import）与 T17（agent 编排入口）已落地。仍待做的是 T15（state/interaction driver）和 T18（设计稿 baseline diff），见下。
+当前状态：T0-T13 实现了 ADW fallback MVP 的大部分模块——配置、Flow Ledger、模板、扫描、Proposal、Design、Review、Code Context、Gap、Autofix、Live Workbench、DESIGN.md delta gate。早期曾把闭环 overclaim 成「已验证」，实际四个生命周期命令缺 CLI 入口；**T16 已接线**，闭环现可经 CLI 端到端跑通。T14b（handoff/import）、T17（agent 编排入口）、T15（state/interaction driver）和 T18（设计稿 baseline diff）已落地。
 
 新增：
 
@@ -792,9 +820,9 @@ Design Workflow Orchestrator
 - T16 Flow 生命周期命令闭环（最高优先：闭环命门）。
 - T14 Impeccable Detect Adapter + Skill Handoff Boundary。
 - T17 ADW Agent 编排入口（skill / workflow）。
-- T15 State / Interaction Driver。
+- T15 State / Interaction Driver（已落地）。
 
-（T18 设计稿 baseline diff 归入 Stage 2，因为它依赖 chrome 标记规范稳定后才好降噪。）
+（T18 已在 Stage 2 落地语义 baseline diff；后续 Stage 2 增强重点转为视觉证据、role tree、真实项目降噪。）
 
 通过标准：
 
@@ -813,7 +841,7 @@ Design Workflow Orchestrator
 
 新增：
 
-- token / DOM / detector 检查降噪和扩大覆盖；state 在 driver 完成后再纳入运行期覆盖。
+- token / DOM / detector / baseline 检查降噪和扩大覆盖；state / interaction driver 在真实项目中继续降噪。
 - 稳定的 interaction / a11y 规则从提醒升级为阻塞。
 - H5-first knobs 和本地 deterministic patch。
 - Product Context adapter。
@@ -846,7 +874,7 @@ MVP 验收必须满足：
 - [x] 没有把需求级内容写进根 `DESIGN.md`。
 - [x] HTML 原型和设计稿可用于评审。
 - [x] 设计稿审查门有 deterministic rules 和 judgment review fallback。
-- [x] gap report 使用阻塞 / 提醒 / 证据 / not-run 分档。
+- [x] gap report 使用阻塞 / 提醒 / 证据 / `not-run` / `not-testable` 分档。
 - [x] 自动修复不会越权改全局设计语言。
 - [x] 自动修复 patch 可回滚，且每轮阻塞问题数量必须下降。
 - [x] `DESIGN.md` 只有经当前操作者确认的 delta 才会更新。
@@ -864,11 +892,12 @@ MVP 验收必须满足：
 - [x] `/document` 和 `/critique` 建立 handoff / import 协议（命令名 / 文件格式 / schema），而不是被写成 CLI 直接调用（T14b）。
 - [x] 有一个可安装的 agent 编排 skill（T17），命令逐条对得上 §5.3 契约表。
 - [x] `live:*` 明确是 workbench / PatchIntent / `/live` handoff，不宣称 CLI 已真实修改页面（文案已对齐；T14b 已提供通用 `/live` handoff/import 骨架）。
+- [x] state / interaction runtime driver 能真实驱动和验证声明状态 / 交互（T15）。
+- [x] gap 能以 `design-<flow>.html` 为 baseline 做语义 DOM diff（T18）。
 
-尚未满足的 P0 / Stage 2 验收：
+尚未满足的增强项：
 
-- [ ] state / interaction runtime driver 能真实驱动和验证声明状态 / 交互（含 `ScreenStateSchema` 加 `driver` 字段）（T15）。
-- [ ] gap 能以 `design-<flow>.html` 为 baseline 做语义/DOM diff（T18），在此之前不叫「设计产物 diff」。
+- [ ] baseline diff 进一步扩展到 role tree、关键选择器、masked screenshot 视觉证据和真实项目降噪。
 
 ## 10. 风险与缓解
 
@@ -883,7 +912,7 @@ MVP 验收必须满足：
 | Impeccable 被绕开 | 自建重复能力 | 当前已发生；P0 删除自写 detector，skill 走 handoff / import |
 | gap 误判 | 响应式差异或 a11y 噪声误杀 | 阻塞 / 提醒 / 证据三档 |
 | screenshot 误导 | 手机壳和状态栏造成大量噪声 | screenshot 只做 visual evidence |
-| state / interaction 空挡 | 设计门声明了状态，但运行页没有真实驱动 | P0 做 State / Interaction Driver；未驱动时标 `not-run` / `not-testable` |
+| state / interaction 误配 | 设计门声明了状态，但 driver 缺失、不可执行或过于依赖外部数据 | T15 已做 runtime driver；进入 Code 前缺 driver 会被挡住，运行期失败 / 不可测写入 report |
 | live 名实不符 | 只有 live workbench 和 PatchIntent，没有真实页面修改 | 真实修改走 agent `/live` handoff；接入前不宣称 CLI 已完成 live 修改 |
 | live 太慢 | 高频修改都等模型 | 记录 `/live` handoff 数据，阶段 2 加 knobs 和 deterministic patch |
 | Product Context 冲突 | README/AGENTS/PRODUCT 各说各话 | MVP 兼容，后续 adapter 化 |
@@ -893,7 +922,7 @@ MVP 验收必须满足：
 
 1. `/live` 的底层 server/session 是否可脚本化；在证明前只作为 agent skill handoff。
 2. `/document`、`/critique`、`/polish`、`/audit`、`/live` 的 import schema 优先级。
-3. State / Interaction Driver 优先支持哪类驱动：mock response、fixture、query param、test hook。
+3. ~~State / Interaction Driver 优先支持哪类驱动~~（已决：T15 支持 query-param、mock-response、fixture、feature-flag、test-hook；seed-data 只记录不可测，需外部预置）。
 4. 模板 registry 是 vendoring 模板，还是作为独立 package 依赖。
 
 ## 12. 变更前风险自检

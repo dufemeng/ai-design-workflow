@@ -18,12 +18,104 @@ export type Screen = z.infer<typeof ScreenSchema>;
 export const StateKindSchema = z.enum(['empty', 'loading', 'error', 'success', 'boundary']);
 export type StateKind = z.infer<typeof StateKindSchema>;
 
+const ScalarSchema = z.union([z.string(), z.number(), z.boolean()]);
+
+export const DriverExpectationSchema = z.object({
+  selector: z.string().min(1).optional(),
+  text: z.string().min(1).optional(),
+  urlIncludes: z.string().min(1).optional(),
+});
+export type DriverExpectation = z.infer<typeof DriverExpectationSchema>;
+
+export const StateDriverSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('query-param'),
+    params: z.record(ScalarSchema).default({}),
+  }),
+  z.object({
+    type: z.literal('mock-response'),
+    urlPattern: z.string().min(1),
+    status: z.number().int().min(100).max(599).default(200),
+    body: z.unknown().default({}),
+    headers: z.record(z.string()).default({}),
+  }),
+  z.object({
+    type: z.literal('fixture'),
+    path: z.string().min(1),
+    mode: z.enum(['query-param', 'mock-response']).default('query-param'),
+    paramName: z.string().min(1).default('fixture'),
+    urlPattern: z.string().optional(),
+    status: z.number().int().min(100).max(599).default(200),
+  }),
+  z.object({
+    type: z.literal('feature-flag'),
+    flags: z.record(ScalarSchema).default({}),
+    mode: z.enum(['query-param', 'local-storage']).default('query-param'),
+  }),
+  z.object({
+    type: z.literal('seed-data'),
+    description: z.string().min(1),
+    params: z.record(z.unknown()).default({}),
+  }),
+  z.object({
+    type: z.literal('test-hook'),
+    hook: z.string().min(1),
+    params: z.record(z.unknown()).default({}),
+  }),
+]);
+export type StateDriver = z.infer<typeof StateDriverSchema>;
+
 export const ScreenStateSchema = z.object({
   id: z.string().min(1),
   screenId: z.string().min(1),
   kind: StateKindSchema,
   description: z.string().default(''),
+  driver: StateDriverSchema.optional(),
+  expected: DriverExpectationSchema.optional(),
+  notTestableReason: z.string().min(1).optional(),
 });
+
+export const InteractionStepSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('click'),
+    selector: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal('input'),
+    selector: z.string().min(1),
+    value: z.string().default(''),
+  }),
+  z.object({
+    action: z.literal('expand-collapse'),
+    selector: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal('scroll'),
+    selector: z.string().min(1).optional(),
+    x: z.number().default(0),
+    y: z.number().default(480),
+  }),
+  z.object({
+    action: z.literal('keyboard'),
+    key: z.string().min(1),
+  }),
+]);
+export type InteractionStep = z.infer<typeof InteractionStepSchema>;
+
+export const InteractionDriverSchema = z.object({
+  steps: z.array(InteractionStepSchema).min(1),
+  expected: DriverExpectationSchema.optional(),
+});
+export type InteractionDriver = z.infer<typeof InteractionDriverSchema>;
+
+export const InteractionSpecSchema = z.object({
+  id: z.string().min(1),
+  screenId: z.string().optional(),
+  description: z.string().min(1),
+  driver: InteractionDriverSchema.optional(),
+  notTestableReason: z.string().min(1).optional(),
+});
+export type InteractionSpec = z.infer<typeof InteractionSpecSchema>;
 
 export const AcceptanceRuleSchema = z.object({
   id: z.string().min(1),
@@ -60,6 +152,7 @@ export const DesignFlowSpecSchema = z
     mainPath: z.string().default(''),
     screens: z.array(ScreenSchema).min(1),
     states: z.array(ScreenStateSchema).default([]),
+    interactions: z.array(InteractionSpecSchema).default([]),
     targetRoute: z.string().nullable().default(null),
     h5Constraints: H5ConstraintsSchema.default({}),
     acceptanceRules: z.array(AcceptanceRuleSchema).default([]),
@@ -71,6 +164,17 @@ export const DesignFlowSpecSchema = z
     for (const st of spec.states) {
       if (!screenIds.has(st.screenId)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['states'], message: `状态「${st.id}」引用了不存在的屏幕「${st.screenId}」` });
+      }
+      if (st.driver && st.notTestableReason) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['states'], message: `状态「${st.id}」不能同时声明 driver 和 notTestableReason` });
+      }
+    }
+    for (const it of spec.interactions) {
+      if (it.screenId && !screenIds.has(it.screenId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['interactions'], message: `交互「${it.id}」引用了不存在的屏幕「${it.screenId}」` });
+      }
+      if (it.driver && it.notTestableReason) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['interactions'], message: `交互「${it.id}」不能同时声明 driver 和 notTestableReason` });
       }
     }
     for (const ar of spec.acceptanceRules) {
@@ -90,6 +194,10 @@ export interface Readiness {
 export function readinessForCode(spec: DesignFlowSpec): Readiness {
   const missing: string[] = [];
   if (spec.states.length === 0) missing.push('机器可读状态清单');
+  const statesWithoutDriver = spec.states.filter((s) => !s.driver && !s.notTestableReason);
+  if (statesWithoutDriver.length > 0) missing.push(`状态驱动方式或 not-testable 理由：${statesWithoutDriver.map((s) => s.id).join(', ')}`);
+  const interactionsWithoutDriver = spec.interactions.filter((i) => !i.driver && !i.notTestableReason);
+  if (interactionsWithoutDriver.length > 0) missing.push(`交互驱动方式或 not-testable 理由：${interactionsWithoutDriver.map((i) => i.id).join(', ')}`);
   if (!spec.targetRoute) missing.push('目标 route');
   if (spec.acceptanceRules.length === 0) missing.push('验收规则');
   return { ready: missing.length === 0, missing };

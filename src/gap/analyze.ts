@@ -1,9 +1,10 @@
 import type { GapCheck, GapConfig } from '../config/schema.js';
 import type { DesignFlowSpec } from '../design-flow/index.js';
 import { formatImpeccableFinding, hasBlockingDetectorFinding, type ImpeccableDetectResult } from '../impeccable/index.js';
+import type { RuntimeDriverReport, RuntimeDriverResult } from './runtime.js';
 import type { PageSnapshot } from './snapshot.js';
 
-export type CheckStatus = 'pass' | 'block' | 'advisory' | 'not-run';
+export type CheckStatus = 'pass' | 'block' | 'advisory' | 'not-run' | 'not-testable';
 
 export interface CheckResult {
   check: GapCheck;
@@ -47,10 +48,18 @@ function severityFor(check: GapCheck, gap: GapConfig): CheckStatus {
 
 /**
  * 纯函数：对快照 + 设计 spec + DESIGN.md 调色板 + gap 配置，产出各检查结果。
- * MVP 真正会跑的：token / dom / detector / a11y。state / interaction 诚实标 not-run
- * （需要状态驱动 / 交互驱动，MVP 未实现）。
+ * 基础快照会跑 token / dom / detector / a11y。
+ * state / interaction 只有在 engine 传入 runtime driver 结果时才会升级为真实检查；
+ * 否则诚实标 not-run。
  */
-export function analyzeSnapshot(snapshot: PageSnapshot, spec: DesignFlowSpec, palette: string[] | null, gap: GapConfig, detector: ImpeccableDetectResult): CheckResult[] {
+export function analyzeSnapshot(
+  snapshot: PageSnapshot,
+  spec: DesignFlowSpec,
+  palette: string[] | null,
+  gap: GapConfig,
+  detector: ImpeccableDetectResult,
+  runtime?: RuntimeDriverReport,
+): CheckResult[] {
   const results: CheckResult[] = [];
 
   // token：有色且不在调色板里的颜色才算漂移
@@ -105,11 +114,29 @@ export function analyzeSnapshot(snapshot: PageSnapshot, spec: DesignFlowSpec, pa
   }
   results.push(a11y.length ? { check: 'a11y', status: 'advisory', findings: a11y } : { check: 'a11y', status: 'pass', findings: [] });
 
-  // state / interaction：MVP 未实现状态驱动 / 交互驱动，诚实标 not-run
-  results.push({ check: 'state', status: 'not-run', findings: [`声明了 ${spec.states.length} 个状态，但 MVP 未实现状态驱动，无法验证覆盖。`] });
-  results.push({ check: 'interaction', status: 'not-run', findings: ['MVP 未实现交互驱动检查。'] });
+  results.push(runtime ? aggregateRuntime('state', runtime.states, spec.states.length, gap) : { check: 'state', status: 'not-run', findings: [`声明了 ${spec.states.length} 个状态，但未传入运行期状态驱动结果。`] });
+  results.push(
+    runtime
+      ? aggregateRuntime('interaction', runtime.interactions, spec.interactions.length, gap)
+      : { check: 'interaction', status: 'not-run', findings: [`声明了 ${spec.interactions.length} 个交互，但未传入运行期交互驱动结果。`] },
+  );
 
   return results;
+}
+
+function aggregateRuntime(check: 'state' | 'interaction', items: RuntimeDriverResult[], declaredCount: number, gap: GapConfig): CheckResult {
+  if (declaredCount === 0) return { check, status: 'not-run', findings: [`未声明 ${check === 'state' ? '状态' : '交互'} driver。`] };
+  if (items.length === 0) return { check, status: 'not-run', findings: [`声明了 ${declaredCount} 个${check === 'state' ? '状态' : '交互'}，但没有运行期结果。`] };
+
+  const failed = items.filter((i) => i.status === 'failed');
+  const notTestable = items.filter((i) => i.status === 'not-testable');
+  const passed = items.filter((i) => i.status === 'pass');
+  const findings = items.flatMap((i) => i.findings.map((f) => `${i.id}: ${f}`));
+
+  if (failed.length > 0) return { check, status: severityFor(check, gap), findings };
+  if (notTestable.length > 0 && passed.length === 0) return { check, status: 'not-testable', findings };
+  if (notTestable.length > 0) return { check, status: 'advisory', findings };
+  return { check, status: 'pass', findings: [] };
 }
 
 export function countSeverities(results: CheckResult[]): { blockingCount: number; warningCount: number } {

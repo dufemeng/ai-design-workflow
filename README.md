@@ -41,7 +41,7 @@
 - [x] T7 需求级正式设计产物（`src/design-flow`：机器可读 spec + 准入门）
 - [x] T8 设计稿审查门（`src/review`：确定性层 + 判断层证据契约）
 - [x] T9 Code 工作台接入（`src/code`）
-- [x] T10 gap engine —— 实现页健康 + token/detect 闸门（`src/gap`）。⚠️ 当前**不**比对设计稿 baseline，那是 T18。
+- [x] T10 gap engine —— 实现页健康 + token/detect 闸门（`src/gap`）
 - [x] T11 自动修复 loop（`src/autofix`：安全契约 + 收敛/回滚）
 - [x] T12 Human Live Review（`src/live`：gap 门控 workbench + PatchIntent；真实改页走 agent `/live`）
 - [x] T13 DESIGN.md 更新门禁（`src/design/delta`：delta proposal + 显式 confirm）
@@ -52,11 +52,11 @@ Stage 1.5 P0 清债：
 - [x] T14a Impeccable Detect Adapter + 删除自写 detector 主路径（`src/impeccable`）
 - [x] T14b Skill Handoff / Import 协议（`handoff:<skill>` / `import:<skill>`，`document` / `critique` 专用 schema + 其他 skill 通用 provenance 骨架）
 - [x] T17 ADW Agent 编排入口（可安装 skill：`skill:install`，Claude Code skill + AGENTS.md 兼容）
-- [ ] T15 State / Interaction Driver（含给 `ScreenStateSchema` 加 `driver` 字段）
+- [x] T15 State / Interaction Driver（`ScreenStateSchema.driver` + runtime driver + `not-testable` report）
 
 Stage 2：
 
-- [ ] T18 设计稿 baseline gap diff（以 `design-<flow>.html` 为 baseline 做语义/DOM/视觉 diff）
+- [x] T18 设计稿 baseline gap diff（以 `design-<flow>.html` 为 baseline 做语义/DOM diff；视觉 diff 仍只作为后续证据增强）
 
 ## 开发
 

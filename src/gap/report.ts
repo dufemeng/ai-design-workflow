@@ -6,7 +6,7 @@ import type { AdwConfig } from '../config/schema.js';
 
 export const CheckResultSchema = z.object({
   check: GapCheckSchema,
-  status: z.enum(['pass', 'block', 'advisory', 'not-run']),
+  status: z.enum(['pass', 'block', 'advisory', 'not-run', 'not-testable']),
   findings: z.array(z.string()),
   source: z.string().optional(),
 });
@@ -31,7 +31,7 @@ function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
 
-const STATUS_LABEL: Record<string, string> = { pass: '通过', block: '阻塞', advisory: '提醒', 'not-run': '未跑' };
+const STATUS_LABEL: Record<string, string> = { pass: '通过', block: '阻塞', advisory: '提醒', 'not-run': '未跑', 'not-testable': '不可测' };
 
 export function renderGapHtml(report: GapReport): string {
   const rows = report.checks
@@ -50,7 +50,7 @@ export function renderGapHtml(report: GapReport): string {
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th,td { text-align:left; padding:8px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top; }
   tr[data-status="block"] td:nth-child(2){ color:#ffb4ab; } tr[data-status="advisory"] td:nth-child(2){ color:#f59e0b; }
-  tr[data-status="pass"] td:nth-child(2){ color:#22c55e; } tr[data-status="not-run"] td:nth-child(2){ color:#93927c; }
+  tr[data-status="pass"] td:nth-child(2){ color:#22c55e; } tr[data-status="not-run"] td:nth-child(2), tr[data-status="not-testable"] td:nth-child(2){ color:#93927c; }
 </style></head>
 <body><main>
   <h1>gap report：${esc(report.slug)}</h1>
