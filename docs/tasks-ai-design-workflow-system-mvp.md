@@ -600,7 +600,7 @@ Design Workflow Orchestrator
 
   **`import:document`**（agent 跑完 `/document` 的产物）
   - 必填字段：`designMdContent`（string，完整 DESIGN.md 正文）、`sidecar`（object | null，`.impeccable/design.json` 内容）、`tokensSummary`（object：colors / typography 等，用于确认页与 delta 比对）。
-  - 校验：`designMdContent` 能被现有 `parseDesignMd` 解析（frontmatter 六节齐全），否则拒绝。
+  - 校验：**新增 `validateDesignMdForImport`**，不能只调 `parseDesignMd`（它是宽松解析：YAML 出错就吞成空、正文只抽标题，不会拒绝六节缺失或 frontmatter 不全）。validator 必须显式检查 frontmatter 必需 token（name/colors/typography 等）+ 正文六节齐全，缺失即拒绝。
   - 写回：**不直接覆盖根 `DESIGN.md`**。走现有 delta gate —— 落 draft + 渲染确认页，经 `designmd:confirm-delta` 显式确认后才写，并记 `designVersion`。
 
   **`import:critique`**（agent 跑完 `/critique` 的产物）
